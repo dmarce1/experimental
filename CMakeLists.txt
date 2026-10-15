@@ -192,6 +192,12 @@ if(COSMICTIGER_ENABLE_CUDA)
     target_sources(cosmictiger_particles PRIVATE src/gravity/p2m_cuda.cu)
 endif()
 
+# Per-cell kd-trees for local FMM solves; position ordering is the active path.
+add_library(cosmictiger_kd_tree STATIC src/gravity/tree/kd_tree.cpp)
+target_link_libraries(cosmictiger_kd_tree PUBLIC cosmictiger_particles)
+target_compile_options(cosmictiger_kd_tree PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
+
 add_library(cosmictiger_initialization STATIC src/particle/particle_initialization.cpp src/fft/fft_hpx_exchange.cpp)
 target_link_libraries(cosmictiger_initialization PUBLIC cosmictiger_particles cosmictiger_boltzmann)
 # Threshold bracketing, finite-value guards, and CAMB amplitude derivatives
@@ -435,6 +441,15 @@ if(BUILD_TESTING)
         --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
         --hpx:ini=hpx.parcel.mpi.enable=0)
     set_tests_properties(cosmictiger.fmm_interactions PROPERTIES PROCESSORS 6 TIMEOUT 120 RUN_SERIAL TRUE)
+
+    add_executable(cosmictiger_kd_tree_tests tests/test_main.cpp tests/tree/kd_tree.cpp)
+    target_link_libraries(cosmictiger_kd_tree_tests PRIVATE cosmictiger_kd_tree GTest::gtest)
+    target_compile_options(cosmictiger_kd_tree_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-fno-fast-math>")
+    add_test(NAME cosmictiger.kd_tree COMMAND cosmictiger_kd_tree_tests
+        --hpx:threads=2 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+        --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+        --hpx:ini=hpx.parcel.mpi.enable=0)
+    set_tests_properties(cosmictiger.kd_tree PROPERTIES PROCESSORS 6 TIMEOUT 120 RUN_SERIAL TRUE)
 
     set(symmetricRuntimeOptions --hpx:threads=1 --hpx:bind=none --hpx:localities=1 --hpx:console
         --hpx:ini=hpx.parcel.enable=0 --hpx:ini=hpx.parcel.mpi.enable=0

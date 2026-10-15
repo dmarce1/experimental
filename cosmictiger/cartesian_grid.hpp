@@ -472,6 +472,16 @@ public:
     // Each supplied array must cover the same index range as particle storage.
     void sortParticlesByRung(ParticleStorage& particles, double* const* companionFields = nullptr);
 
+    // Mark every nonempty cell's rung ranges invalid after another ordering,
+    // such as a kd-tree build, has permuted cell particles. Kicks then scan
+    // whole cells; sortParticlesByRung restores the PM-FMM rung ordering.
+    void invalidateRungRanges() noexcept {
+        PROFILE();
+        for (auto& entry : cells_) {
+            resetRungRanges(entry);
+        }
+    }
+
 private:
     CartesianGridLayout geometry_;
     std::vector<Cell> cells_;

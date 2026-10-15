@@ -92,6 +92,7 @@ manifest only after its final checkpoint files have been produced.
 | PMMM | `cosmictiger/gravity/pmmm/`, `src/gravity/pmmm/pmmm_runtime_convolution.cpp` | Periodic Green coefficients, near-region exclusion, coefficient contraction and runtime rank dispatch |
 | Softening and references | `cosmictiger/gravity/ferrers.hpp`, `cosmictiger/gravity/plummer.hpp`, `cosmictiger/gravity/direct/`, `src/gravity/direct/` | Ferrers/Plummer kernels, direct periodic reference, sampled error comparisons |
 | Cell-level FMM | `cosmictiger/gravity/fmm/`, `src/gravity/fmm/` | Batched CPU/CUDA M2L, P2L and M2P cell interactions ported from the old tree code; not yet attached; `cosmictiger/cuda/cuda_warp_partition.cuh` warp list partitioning ([fmm_interactions.md](fmm_interactions.md)) |
+| Per-cell kd-trees | `cosmictiger/gravity/tree/`, `src/gravity/tree/` | Geometric x/y/z kd-tree rooted at each mesh cell, in-place position or rung-threshold ordering, center-of-mass node multipoles; not yet attached ([kd_tree.md](kd_tree.md)) |
 | Kick | `cosmictiger/gravity/kick/`, `src/gravity/kick/` | Complete near/far field, timestep/rung choice, staggered half-kicks and force sums |
 | Drift | `cosmictiger/drift/drift.hpp`, `src/drift/` | CPU/SIMD and CUDA particle position updates using cosmological drift integrals |
 | Evolution and restart | `cosmictiger/evolution/`, `src/evolution/` | Integer rung clock, drift/redistribution/gravity sequence, diagnostics, snapshot interpolation and checkpoint metadata |
