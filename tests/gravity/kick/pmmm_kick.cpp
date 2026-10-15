@@ -500,6 +500,135 @@ TEST_F(PmmmKickTest, OverlappedFieldsAndKickMatchFusedBitsAcrossOrdersPhasesAndO
     }
 }
 
+// Reverse each interior cell's particles so no cell remains in rung order.
+void reverseInteriorCells(CartesianGrid const& grid, ParticleStorage& particles) {
+    PROFILE();
+    for (size_t index = 0; index < grid.layout().storedCellCount(); index++) {
+        auto const coordinates = grid.layout().cellCoordinates(index);
+        if (!grid.layout().isInterior(coordinates)) {
+            continue;
+        }
+        auto const range = grid.cell(coordinates).localParticles;
+        for (ParticleCount offset = 0; 2 * offset + 1 < range.end - range.begin; offset++) {
+            particles.swapParticles(range.begin + offset, range.end - 1 - offset);
+        }
+    }
+}
+
+// Per-particle comparison keyed by position, which a kick does not change.
+void expectSameParticleKicks(ParticleStorage const& actual, ParticleStorage const& expected) {
+    constexpr float kRelativeTolerance = 1e-5f;
+    PROFILE();
+    ASSERT_EQ(actual.size(), expected.size());
+    for (ParticleCount index = 0; index < expected.size(); index++) {
+        auto const key = position(expected, index);
+        ParticleCount match = actual.size();
+        for (ParticleCount candidate = 0; candidate < actual.size(); candidate++) {
+            auto const other = position(actual, candidate);
+            if (other.x.raw() == key.x.raw() && other.y.raw() == key.y.raw() && other.z.raw() == key.z.raw()) {
+                match = candidate;
+            }
+        }
+        ASSERT_LT(match, actual.size());
+        EXPECT_EQ(actual.flags(match).rung(), expected.flags(index).rung());
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            float const reference = expected.velocity(axis, index);
+            EXPECT_NEAR(actual.velocity(axis, match), reference, kRelativeTolerance * (1.0f + std::abs(reference)));
+            float const acceleration = expected.acceleration(axis, index);
+            EXPECT_NEAR(actual.acceleration(axis, match), acceleration, kRelativeTolerance * (1.0f + std::abs(acceleration)));
+        }
+        float const potential = expected.potential(index);
+        EXPECT_NEAR(actual.potential(match), potential, kRelativeTolerance * (1.0f + std::abs(potential)));
+    }
+}
+
+TEST_F(PmmmKickTest, DisabledRungSortingKeepsParticleOrderAndInvalidatesRungRanges) {
+    PROFILE();
+    CartesianGrid grid(3, 0, 0);
+    ParticleStorage particles;
+    seedOverlapParticles(grid, particles, false, false, false);
+    EXPECT_TRUE(grid.rungSorting());
+    grid.setRungSorting(false);
+    EXPECT_FALSE(grid.rungSorting());
+    auto const before = particleSnapshot(particles);
+    grid.sortParticlesByRung(particles);
+    EXPECT_EQ(particleSnapshot(particles), before);
+    for (size_t index = 0; index < grid.layout().storedCellCount(); index++) {
+        auto const& cell = grid.cell(grid.layout().cellCoordinates(index));
+        EXPECT_EQ(cell.rungRangesValid, cell.localParticles.begin == cell.localParticles.end);
+    }
+    grid.setRungSorting(true);
+    grid.sortParticlesByRung(particles);
+    for (size_t index = 0; index < grid.layout().storedCellCount(); index++) {
+        EXPECT_TRUE(grid.cell(grid.layout().cellCoordinates(index)).rungRangesValid);
+    }
+}
+
+// The kick selects active sinks by their flags, so it needs no rung order.
+TEST_F(PmmmKickTest, KickWithoutRungSortingMatchesRungSortedKick) {
+    constexpr std::array<KickPhase, 3> kPhases{KickPhase::initial, KickPhase::regular, KickPhase::final};
+    PROFILE();
+    for (bool const overlapped : {false, true}) {
+        for (auto const phase : kPhases) {
+            for (std::uint8_t const activeRung : {std::uint8_t(0), std::uint8_t(2), std::uint8_t(3)}) {
+                CartesianGrid sortedGrid(3, 0, 0);
+                CartesianGrid unsortedGrid(3, 0, 0);
+                ParticleStorage sorted;
+                ParticleStorage unsorted;
+                seedOverlapParticles(sortedGrid, sorted, true, true, true);
+                seedOverlapParticles(unsortedGrid, unsorted, true, true, false);
+                unsortedGrid.setRungSorting(false);
+                reverseInteriorCells(unsortedGrid, unsorted);
+                unsortedGrid.sortParticlesByRung(unsorted);
+                auto const unsortedOrder = particleSnapshot(unsorted);
+                auto const parameters = overlapParameters(phase);
+                auto const softening = makeFerrersSoftening(0.02f);
+                KickSums sortedSums;
+                KickSums unsortedSums;
+                for (auto* const run : {&sortedGrid, &unsortedGrid}) {
+                    auto& particles = run == &sortedGrid ? sorted : unsorted;
+                    auto* const sums = run == &sortedGrid ? &sortedSums : &unsortedSums;
+                    if (overlapped) {
+                        kickPmmmParticlesOverlappedCpu(*run, particles, softening, 2, 0.125f, 1.0, activeRung, parameters,
+                            hpx::annotated_function(
+                                [run] {
+                                    PROFILE();
+                                    installOverlapPolynomial(*run);
+                                },
+                                "test.pmmm.installUnsortedFarField"),
+                            sums);
+                    } else {
+                        installOverlapPolynomial(*run);
+                        kickPmmmParticlesCpu(*run, particles, softening, 2, 0.125f, 1.0, activeRung, parameters, sums);
+                    }
+                }
+                // gtest traces are per OS thread; declare after the suspending kicks.
+                SCOPED_TRACE(::testing::Message() << "overlapped=" << overlapped << " phase=" << int(phase) << " activeRung=" << int(activeRung));
+                // Sums cancel; scale their tolerance by the summed magnitudes.
+                std::array<double, NDIM> magnitude{};
+                double potentialMagnitude = 0.0;
+                for (ParticleCount index = 0; index < sorted.size(); index++) {
+                    for (size_t axis = 0; axis < NDIM; axis++) {
+                        magnitude[axis] += std::abs(double(sorted.acceleration(axis, index)));
+                    }
+                    potentialMagnitude += std::abs(double(sorted.potential(index)));
+                }
+                EXPECT_EQ(unsortedSums.particleCount, sortedSums.particleCount);
+                for (size_t axis = 0; axis < NDIM; axis++) {
+                    EXPECT_NEAR(unsortedSums.acceleration[axis], sortedSums.acceleration[axis], 1e-6 * (1.0 + magnitude[axis]));
+                }
+                EXPECT_NEAR(unsortedSums.potential, sortedSums.potential, 1e-6 * (1.0 + potentialMagnitude));
+                expectSameParticleKicks(unsorted, sorted);
+                // The kick's closing sort leaves the unsorted order in place.
+                for (ParticleCount index = 0; index < unsorted.size(); index++) {
+                    auto const& current = position(unsorted, index);
+                    EXPECT_EQ(current.x.raw(), unsortedOrder[index * (3 * NDIM + 3)]);
+                }
+            }
+        }
+    }
+}
+
 #ifdef COSMICTIGER_ENABLE_CUDA
 TEST_F(PmmmKickTest, CudaEvaluatesNearAndFarFieldsBeforeOneKickPerOwnedSink) {
     PROFILE();

@@ -160,6 +160,10 @@ void CartesianGrid::computeMultipolesCuda(ParticleStorage const& particles, floa
 
 void CartesianGrid::sortParticlesByRung(ParticleStorage& particles, double* const* companionFields) {
     PROFILE();
+    if (!rungSorting_) {
+        invalidateRungRanges();
+        return;
+    }
     // Every cell builds 64 rung ranges even when empty; use coarse cell chunks
     // without adding a pass over ranges or splitting an individual cell's sort.
     detail::ParallelChunkPlan const chunks(cells_.size(), 64);

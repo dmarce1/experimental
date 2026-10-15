@@ -468,6 +468,8 @@ public:
 
     // Cell ranges must refer to disjoint portions of the local storage. Sort
     // independent cell chunks concurrently and finish them before returning.
+    // With rung sorting disabled, particles keep their order and every
+    // nonempty cell's rung ranges are marked invalid instead.
     // Optional transient component arrays follow the exact particle permutation.
     // Each supplied array must cover the same index range as particle storage.
     void sortParticlesByRung(ParticleStorage& particles, double* const* companionFields = nullptr);
@@ -482,11 +484,24 @@ public:
         }
     }
 
+    // Enabled by default. The kick filters sinks by rung itself, so it remains
+    // correct without rung ranges, scanning whole cells instead.
+    void setRungSorting(bool enabled) noexcept {
+        PROFILE();
+        rungSorting_ = enabled;
+    }
+
+    bool rungSorting() const noexcept {
+        PROFILE();
+        return rungSorting_;
+    }
+
 private:
     CartesianGridLayout geometry_;
     std::vector<Cell> cells_;
     std::vector<size_t> ghostCells_;
     bool ghostRangesClear_ = true;
+    bool rungSorting_ = true;
 
     static void checkRange(ParticleRange range) {
         PROFILE();

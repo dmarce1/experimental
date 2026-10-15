@@ -118,6 +118,14 @@ kicks require at least that many ghost layers. The standalone grid constructor
 still defaults to one layer. Sorting by rung occurs only after all
 force reads finish. Refresh ghosts before reusing changed particle data.
 
+Rung sorting is a per-grid switch, `CartesianGrid::setRungSorting`, enabled by
+default and set internally by the gravity method rather than by a run option.
+The PM-FMM path keeps it on. A method that orders cells by kd-tree position
+turns it off; `sortParticlesByRung` then leaves particle order unchanged and
+marks every nonempty cell's rung ranges invalid. Every CPU and CUDA kick path
+selects active owned sinks by their flags, so it scans whole cells and
+produces the same per-particle results up to floating-point summation order.
+
 `kickPmmmParticlesOverlappedCpu` starts a read-only `PmmmNearField` calculation
 with `hpx::async`, then runs a caller-supplied far-field callback. The executable
 uses this path to compute near interactions while PMMM builds/uses its Green
