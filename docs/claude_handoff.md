@@ -96,7 +96,7 @@ manifest only after its final checkpoint files have been produced.
 | Kick | `cosmictiger/gravity/kick/`, `src/gravity/kick/` | Complete near/far field, timestep/rung choice, staggered half-kicks and force sums |
 | Drift | `cosmictiger/drift/drift.hpp`, `src/drift/` | CPU/SIMD and CUDA particle position updates using cosmological drift integrals |
 | Evolution and restart | `cosmictiger/evolution/`, `src/evolution/` | Integer rung clock, drift/redistribution/gravity sequence, diagnostics, snapshot interpolation and checkpoint metadata |
-| CUDA interface | `cosmictiger/cuda/`, `src/cuda/` | HPX futures for runtime operations, allocation, copies, launches and completion; standalone memory pool |
+| CUDA interface | `cosmictiger/cuda/`, `src/cuda/` | HPX futures for runtime operations, allocation, copies, launches and completion; standalone memory pool; pool-backed vectors ported from the old tree code's `device_vector`: host-owned `ManagedVector` with kernel views (`cuda_managed_vector.hpp`) and block-cooperative `DeviceVector` (`cuda_device_vector.hpp`) |
 | Silo | `cosmictiger/particle/particle_silo.hpp`, `src/particle/particle_silo.cpp` | Owned particle output, native restart arrays, physical/comoving views and visualization masters |
 | Lightcones | `cosmictiger/lightcone/`, `src/lightcone/`, `cosmictiger/healpix/`, `src/healpix/`, `tools/render_lightcone.py` | Crossing detection, sparse HEALPix maps, CSV output and PNG rendering |
 | Instrumentation | `cosmictiger/profiler.hpp`, `src/profiler.cpp`, `cosmictiger/flop_counter.hpp` | Statistical CPU sampler, metadata and isolated operation-count utility |

@@ -349,6 +349,22 @@ if(BUILD_TESTING)
             --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
             --hpx:ini=hpx.parcel.mpi.enable=0)
         set_tests_properties(cosmictiger.cuda_warp_partition PROPERTIES PROCESSORS 2 TIMEOUT 120 RUN_SERIAL TRUE)
+
+        add_executable(cosmictiger_cuda_device_vector_tests tests/test_main.cpp tests/cuda/cuda_device_vector.cu)
+        target_link_libraries(cosmictiger_cuda_device_vector_tests PRIVATE cosmictiger_cuda_memory_pool cosmictiger_dependencies GTest::gtest)
+        add_test(NAME cosmictiger.cuda_device_vector COMMAND cosmictiger_cuda_device_vector_tests
+            --hpx:threads=1 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+            --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+            --hpx:ini=hpx.parcel.mpi.enable=0)
+        set_tests_properties(cosmictiger.cuda_device_vector PROPERTIES PROCESSORS 2 TIMEOUT 120 RUN_SERIAL TRUE)
+
+        add_executable(cosmictiger_cuda_managed_vector_tests tests/test_main.cpp tests/cuda/cuda_managed_vector.cu)
+        target_link_libraries(cosmictiger_cuda_managed_vector_tests PRIVATE cosmictiger_cuda_memory_pool cosmictiger_dependencies GTest::gtest)
+        add_test(NAME cosmictiger.cuda_managed_vector COMMAND cosmictiger_cuda_managed_vector_tests
+            --hpx:threads=1 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+            --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+            --hpx:ini=hpx.parcel.mpi.enable=0)
+        set_tests_properties(cosmictiger.cuda_managed_vector PROPERTIES PROCESSORS 2 TIMEOUT 120 RUN_SERIAL TRUE)
     endif()
 
     add_executable(cosmictiger_debug_tests tests/debug.cpp)
