@@ -63,7 +63,7 @@ def p2l(A,P):
     signature=f'''template <> class P2lKernel<{P}> {{
 public:
 \ttemplate <typename Real, typename Expansion>
-\tstatic void add(Expansion& local, Real mass,
+\tCOSMICTIGER_STF_PARTICLE_HOST_DEVICE static void add(Expansion& local, Real mass,
 \t\tReal ux, Real uy, Real uz, Real inverseRadius, Real targetRatio) {{
 \t\t(void) ux; (void) uy; (void) uz; (void) targetRatio;'''
     return finish(A,g,outputs,signature,'P2L',P)
@@ -100,7 +100,7 @@ def m2p(A,P,centered):
     signature=f'''template <> class M2pKernel<{P}, {str(centered).lower()}> {{
 public:
 \ttemplate <typename Real, typename Field, typename Source>
-\tCOSMICTIGER_STF_M2P_HOST_DEVICE static void add(Field& field, Source const& source,
+\tCOSMICTIGER_STF_PARTICLE_HOST_DEVICE static void add(Field& field, Source const& source,
 \t\tReal ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio) {{
 \t\t(void) sourceRatio;'''
     return finish(A,g,outputs,signature,'M2P',P,{'centered':centered})
@@ -108,14 +108,14 @@ public:
 
 def generateParticles(minOrder,maxOrder,algebra):
     code=['#if defined(__CUDACC__)',
-          '#define COSMICTIGER_STF_M2P_HOST_DEVICE __host__ __device__',
+          '#define COSMICTIGER_STF_PARTICLE_HOST_DEVICE __host__ __device__',
           '#else',
-          '#define COSMICTIGER_STF_M2P_HOST_DEVICE',
+          '#define COSMICTIGER_STF_PARTICLE_HOST_DEVICE',
           '#endif', '']
     stats=[]
     for p in range(minOrder,maxOrder+1):
         text,counts=p2l(algebra,p); code.append(text); stats.append(counts)
         for centered in (True,False):
             text,counts=m2p(algebra,p,centered); code.append(text); stats.append(counts)
-    code.append('#undef COSMICTIGER_STF_M2P_HOST_DEVICE')
+    code.append('#undef COSMICTIGER_STF_PARTICLE_HOST_DEVICE')
     return code,stats

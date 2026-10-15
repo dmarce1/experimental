@@ -175,6 +175,15 @@ target_link_libraries(cosmictiger_fmm PUBLIC cosmictiger_stf HPX::hpx)
 target_compile_options(cosmictiger_fmm PRIVATE
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
 
+# Batched cell-level FMM interactions (M2L, P2L, M2P), not yet attached to evolution.
+add_library(cosmictiger_fmm_interactions STATIC src/gravity/fmm/fmm_interactions.cpp)
+target_link_libraries(cosmictiger_fmm_interactions PUBLIC cosmictiger_dependencies)
+target_compile_options(cosmictiger_fmm_interactions PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
+if(COSMICTIGER_ENABLE_CUDA)
+    target_sources(cosmictiger_fmm_interactions PRIVATE src/gravity/fmm/fmm_interactions.cu)
+endif()
+
 add_library(cosmictiger_particles STATIC src/cartesian_grid.cpp src/particle/particle_load_balance.cpp src/particle/particle_ghost_exchange.cpp src/particle/particle_silo.cpp)
 target_link_libraries(cosmictiger_particles PUBLIC cosmictiger_dependencies cosmictiger_cosmology)
 target_compile_options(cosmictiger_particles PRIVATE
@@ -326,6 +335,14 @@ if(BUILD_TESTING)
             --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
             --hpx:ini=hpx.parcel.mpi.enable=0)
         set_tests_properties(cosmictiger.kick_cuda PROPERTIES PROCESSORS 8 TIMEOUT 120 RUN_SERIAL TRUE)
+
+        add_executable(cosmictiger_cuda_warp_partition_tests tests/test_main.cpp tests/cuda/cuda_warp_partition.cu)
+        target_link_libraries(cosmictiger_cuda_warp_partition_tests PRIVATE cosmictiger_dependencies GTest::gtest)
+        add_test(NAME cosmictiger.cuda_warp_partition COMMAND cosmictiger_cuda_warp_partition_tests
+            --hpx:threads=1 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+            --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+            --hpx:ini=hpx.parcel.mpi.enable=0)
+        set_tests_properties(cosmictiger.cuda_warp_partition PROPERTIES PROCESSORS 2 TIMEOUT 120 RUN_SERIAL TRUE)
     endif()
 
     add_executable(cosmictiger_debug_tests tests/debug.cpp)
@@ -407,6 +424,18 @@ if(BUILD_TESTING)
     target_include_directories(cosmictiger_symmetric_tests PRIVATE "${PROJECT_SOURCE_DIR}")
     target_link_libraries(cosmictiger_symmetric_tests PRIVATE HPX::hpx GTest::gtest)
     target_compile_options(cosmictiger_symmetric_tests PRIVATE -fno-fast-math)
+    add_executable(cosmictiger_fmm_interactions_tests tests/test_main.cpp tests/fmm/fmm_interactions.cpp)
+    if(COSMICTIGER_ENABLE_CUDA)
+        target_sources(cosmictiger_fmm_interactions_tests PRIVATE tests/fmm/fmm_interactions_cuda.cu)
+    endif()
+    target_link_libraries(cosmictiger_fmm_interactions_tests PRIVATE cosmictiger_fmm_interactions GTest::gtest)
+    target_compile_options(cosmictiger_fmm_interactions_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-fno-fast-math>")
+    add_test(NAME cosmictiger.fmm_interactions COMMAND cosmictiger_fmm_interactions_tests
+        --hpx:threads=2 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+        --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+        --hpx:ini=hpx.parcel.mpi.enable=0)
+    set_tests_properties(cosmictiger.fmm_interactions PROPERTIES PROCESSORS 6 TIMEOUT 120 RUN_SERIAL TRUE)
+
     set(symmetricRuntimeOptions --hpx:threads=1 --hpx:bind=none --hpx:localities=1 --hpx:console
         --hpx:ini=hpx.parcel.enable=0 --hpx:ini=hpx.parcel.mpi.enable=0
         --hpx:ini=hpx.threadpools.io_pool_size=1 --hpx:ini=hpx.threadpools.timer_pool_size=1)

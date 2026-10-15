@@ -28,11 +28,18 @@ namespace cosmictiger::gravity::stf::detail {
 template <int expansionOrder, bool centered>
 class M2lKernel;
 
+#if defined(__CUDACC__)
+#define COSMICTIGER_STF_M2L_HOST_DEVICE __host__ __device__
+#else
+#define COSMICTIGER_STF_M2L_HOST_DEVICE
+#endif
+
 template <>
 class M2lKernel<0, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient0 = 0;
         PROFILE();
         (void) ux;
@@ -49,7 +56,8 @@ template <>
 class M2lKernel<0, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient0 = 0;
         PROFILE();
         (void) ux;
@@ -66,7 +74,8 @@ template <>
 class M2lKernel<1, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient0 = 0;
         PROFILE();
         (void) ux;
@@ -90,7 +99,8 @@ template <>
 class M2lKernel<1, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         PROFILE();
         (void) ux;
         (void) uy;
@@ -123,7 +133,8 @@ template <>
 class M2lKernel<2, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient1 = 1;
         [[maybe_unused]] constexpr auto kCoefficient19 = 3;
         [[maybe_unused]] constexpr auto kCoefficient43 = 1.0 / 2.0;
@@ -196,7 +207,8 @@ template <>
 class M2lKernel<2, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient1 = 1;
         [[maybe_unused]] constexpr auto kCoefficient23 = 3;
         [[maybe_unused]] constexpr auto kCoefficient60 = 1.0 / 2.0;
@@ -285,7 +297,8 @@ template <>
 class M2lKernel<3, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient1 = 1;
         [[maybe_unused]] constexpr auto kCoefficient4 = 1.0 / 2.0;
         [[maybe_unused]] constexpr auto kCoefficient8 = 3;
@@ -441,7 +454,8 @@ template <>
 class M2lKernel<3, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 2.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient61 = 5.0 / 2.0;
@@ -629,7 +643,8 @@ template <>
 class M2lKernel<4, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient24 = 1.0 / 2.0;
@@ -927,7 +942,8 @@ template <>
 class M2lKernel<4, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient24 = 1.0 / 2.0;
@@ -1303,7 +1319,8 @@ template <>
 class M2lKernel<5, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 4.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -1876,7 +1893,8 @@ template <>
 class M2lKernel<5, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 4.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -2581,7 +2599,8 @@ template <>
 class M2lKernel<6, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient12 = 7;
@@ -3617,7 +3636,8 @@ template <>
 class M2lKernel<6, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient12 = 7;
@@ -4878,7 +4898,8 @@ template <>
 class M2lKernel<7, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 6.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -6704,7 +6725,8 @@ template <>
 class M2lKernel<7, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 6.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -8887,7 +8909,8 @@ template <>
 class M2lKernel<8, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient12 = 7;
@@ -11950,7 +11973,8 @@ template <>
 class M2lKernel<8, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient6 = 3;
         [[maybe_unused]] constexpr auto kCoefficient9 = 5;
         [[maybe_unused]] constexpr auto kCoefficient12 = 7;
@@ -15577,7 +15601,8 @@ template <>
 class M2lKernel<9, true> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 8.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -20572,7 +20597,8 @@ template <>
 class M2lKernel<9, false> {
 public:
     template <typename Real, typename Expansion, typename Source, int sourceOrder>
-    static void add(Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
+    COSMICTIGER_STF_M2L_HOST_DEVICE static void add(
+        Expansion& local, Source const& source, Real ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {
         [[maybe_unused]] constexpr auto kCoefficient3 = 1.0 / 8.0;
         [[maybe_unused]] constexpr auto kCoefficient7 = 3;
         [[maybe_unused]] constexpr auto kCoefficient10 = 5;
@@ -26359,4 +26385,5 @@ public:
     }
 };
 
+#undef COSMICTIGER_STF_M2L_HOST_DEVICE
 }    // namespace cosmictiger::gravity::stf::detail

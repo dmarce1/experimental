@@ -379,7 +379,7 @@ def emitKernel(E,centered):
     out=[f'template <> class M2lKernel<{E}, {str(centered).lower()}> {{',
          'public:',
          '\ttemplate <typename Real, typename Expansion, typename Source, int sourceOrder>',
-         '\tstatic void add(Expansion& local, Source const& source,',
+         '\tCOSMICTIGER_STF_M2L_HOST_DEVICE static void add(Expansion& local, Source const& source,',
          '\t\tReal ux, Real uy, Real uz, Real inverseRadius, Real sourceRatio, Real targetRatio) {']
     out+=g.emitConstants(baseLive|topLive)
     out.append('\t\tPROFILE();')
@@ -409,11 +409,14 @@ def generate(minOrder=0,maxOrder=9):
            '// Distributed under the Boost Software License, Version 1.0.',
            '#pragma once', '#include <cosmictiger/profiler.hpp>', '#include <array>', '#include <cstddef>', '',
            'namespace cosmictiger::gravity::stf::detail {',
-           'template <int expansionOrder, bool centered> class M2lKernel;', '']
+           'template <int expansionOrder, bool centered> class M2lKernel;', '',
+           '#if defined(__CUDACC__)', '#define COSMICTIGER_STF_M2L_HOST_DEVICE __host__ __device__',
+           '#else', '#define COSMICTIGER_STF_M2L_HOST_DEVICE', '#endif', '']
     stats=[]
     for E in range(minOrder,maxOrder+1):
         for centered in (True,False):
             code,counts=emitKernel(E,centered); parts.append(code); stats.append(counts)
+    parts.append('#undef COSMICTIGER_STF_M2L_HOST_DEVICE')
     parts.append('} // namespace cosmictiger::gravity::stf::detail\n')
     from stf.stf_particles import generateParticles
     from stf.stf_translations import generateTranslations
