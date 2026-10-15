@@ -108,8 +108,8 @@ namespace detail {
     // Append one tree over range, rooted at the cell box, in depth-first order
     // with each left child immediately after its parent. Iterative, because
     // HPX thread stacks are small and depth can reach NDIM * fractional bits.
-    void buildTopology(CellTrees& trees, ParticleRange range, CellFrame const& frame, ParticleStorage& particles, KdTreeParameters const& parameters,
-        KdSplitter const& splitter, double* const* companionFields) {
+    void buildTopology(
+        CellTrees& trees, ParticleRange range, CellFrame const& frame, ParticleStorage& particles, KdSplitter const& splitter, double* const* companionFields) {
         PROFILE();
         struct Pending {
             ParticleRange particles;
@@ -136,7 +136,7 @@ namespace detail {
             node.box = item.box;
             node.depth = item.depth;
             ParticleCount const count = item.particles.end - item.particles.begin;
-            if (count > parameters.leafSize) {
+            if (count > kBucketSize) {
                 KdSplit const split = splitter.chooseSplit({item.box, item.depth, item.particles, &particles, frame.lower});
                 if (split.split) {
                     if (split.axis < 0 || split.axis >= NDIM) {
@@ -289,9 +289,6 @@ CellKdTrees CellKdTrees::build(CartesianGrid& grid, ParticleStorage& particles, 
     constexpr size_t kMinimumCellsPerChunk = 8;
     constexpr size_t kMaximumTreesPerCell = 2;
     PROFILE();
-    if (parameters.leafSize == 0) {
-        throw std::invalid_argument("kd-tree leaf size must be positive");
-    }
     if (!(parameters.particleMass > 0.0f)) {
         throw std::invalid_argument("kd-tree particle mass must be positive");
     }
@@ -331,14 +328,14 @@ CellKdTrees CellKdTrees::build(CartesianGrid& grid, ParticleStorage& particles, 
                     auto& trees = cells[index];
                     if (ordering == KdOrdering::position) {
                         trees.roots[0] = 0;
-                        detail::buildTopology(trees, range, frame, particles, parameters, splitter, companionFields);
+                        detail::buildTopology(trees, range, frame, particles, splitter, companionFields);
                     } else {
                         ParticleCount const middle = detail::partitionRange(
                             particles, range, companionFields, [&](ParticleCount particle) { return particles.flags(particle).rung() >= rungThreshold; });
                         trees.roots[0] = 0;
-                        detail::buildTopology(trees, {range.begin, middle}, frame, particles, parameters, splitter, companionFields);
+                        detail::buildTopology(trees, {range.begin, middle}, frame, particles, splitter, companionFields);
                         trees.roots[1] = trees.nodes.size();
-                        detail::buildTopology(trees, {middle, range.end}, frame, particles, parameters, splitter, companionFields);
+                        detail::buildTopology(trees, {middle, range.end}, frame, particles, splitter, companionFields);
                     }
                     detail::computeMoments(trees, frame, particles, parameters);
                 }

@@ -58,7 +58,6 @@
 
 namespace cosmictiger::gravity::tree {
 
-inline constexpr size_t kDefaultLeafSize = 100;
 inline constexpr size_t kNoChild = std::numeric_limits<size_t>::max();
 
 // Half-open box [lower, upper) on each axis, in raw fixed-point offsets from
@@ -137,8 +136,6 @@ enum class KdOrdering {
 };
 
 struct KdTreeParameters {
-    // Nodes with at most this many particles are not split.
-    size_t leafSize = kDefaultLeafSize;
     MultipoleCenter multipoleCenter = MultipoleCenter::centerOfMass;
     // Common particle mass, as in CartesianGrid::computeMultipoles.
     float particleMass = 1.0f;

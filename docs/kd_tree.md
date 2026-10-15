@@ -27,9 +27,9 @@ used by the kick or the evolution path**; no tree walk exists yet.
 `KdSplitter` is the replaceable criterion. The default
 `GeometricMidpointSplitter` splits at the geometric center of the node box on
 axis `depth mod NDIM` (x, y, z, x, ...). A node is a leaf when it has at most
-`leafSize` particles (default `kDefaultLeafSize = 100`) or when the splitter
-declines. The geometric splitter declines at fixed-point resolution, so the
-maximum depth is `NDIM * (32 - gravity.meshExponent)`. A custom splitter
+`gravity::kBucketSize = 128` particles, a compile-time constant in
+`cosmictiger/gravity/config.hpp`, or when the splitter declines. The
+geometric splitter declines at fixed-point resolution, so the maximum depth is `NDIM * (32 - gravity.meshExponent)`. A custom splitter
 must choose a plane strictly inside the node box on the chosen axis; the build
 throws `std::logic_error` otherwise, which also guarantees termination.
 

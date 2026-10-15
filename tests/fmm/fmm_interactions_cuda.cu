@@ -222,6 +222,95 @@ private:
     ManagedArray<fmm::FmmParticleTarget> particleTargets_;
 };
 
+// Targets whose sink and source counts straddle the M2P warp width, source
+// tile, and bucket size, including empty lists and a multi-pass target.
+class TiledM2pScene {
+public:
+    TiledM2pScene()
+      : positions_{ManagedArray<Coordinate>(totalParticles()), ManagedArray<Coordinate>(totalParticles()), ManagedArray<Coordinate>(totalParticles())}
+      , multipoles_(kSourceCells_)
+      , sources_(totalSources())
+      , targets_(kTargets_) {
+        PROFILE();
+        std::array<Vector, kTargets_> targetCenters{};
+        for (size_t target = 0; target < kTargets_; target++) {
+            targetCenters[target] = {(1.5 + 2.0 * static_cast<double>(target)) * test::kSpacing, 3.5 * test::kSpacing, 2.5 * test::kSpacing};
+            cells_.addCell(targetCenters[target], kSinkCounts_[target]);
+        }
+        std::array<Vector, kSourceCells_> sourceCenters{};
+        for (size_t source = 0; source < kSourceCells_; source++) {
+            sourceCenters[source] = {(1.5 + 2.0 * static_cast<double>(source)) * test::kSpacing, 12.5 * test::kSpacing, 12.5 * test::kSpacing};
+            cells_.addCell(sourceCenters[source], kSourceParticles_);
+            multipoles_[source] = cells_.multipole(kTargets_ + source);
+        }
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            for (size_t particle = 0; particle < totalParticles(); particle++) {
+                positions_[axis][particle] = cells_.positions(axis)[particle];
+            }
+        }
+        size_t entry = 0;
+        for (size_t target = 0; target < kTargets_; target++) {
+            size_t const begin = entry;
+            for (size_t listed = 0; listed < kSourceCounts_[target]; listed++) {
+                size_t const source = (target + listed) % kSourceCells_;
+                sources_[entry].multipole = multipoles_[source].data();
+                for (size_t axis = 0; axis < NDIM; axis++) {
+                    sources_[entry].separation[axis] = targetCenters[target][axis] - sourceCenters[source][axis];
+                }
+                entry++;
+            }
+            targets_[target] = {cells_.range(target), cells_.center(target), begin, entry};
+        }
+    }
+
+    fmm::FmmM2pRequest m2p(std::array<ManagedArray<float>, NDIM + 1>& field, int order) {
+        PROFILE();
+        fmm::FmmM2pRequest request{targets_.data(), kTargets_, sources_.data(), sources_.size(), {}, {}, field[0].data(), test::kSpacing, order};
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            request.positions[axis] = positions_[axis].data();
+            request.accelerations[axis] = field[axis + 1].data();
+        }
+        return request;
+    }
+
+    static constexpr size_t particleCount() noexcept {
+        PROFILE();
+        return totalParticles();
+    }
+
+private:
+    static constexpr size_t kTargets_ = 8;
+    static constexpr size_t kSourceCells_ = 7;
+    static constexpr size_t kSourceParticles_ = 12;
+    static constexpr std::array<size_t, kTargets_> kSinkCounts_{
+        0, 1, 31, 32, 33, cosmictiger::gravity::kBucketSize, cosmictiger::gravity::kBucketSize + 1, 300};
+    static constexpr std::array<size_t, kTargets_> kSourceCounts_{5, 0, 31, 32, 33, 70, 1, 64};
+
+    static constexpr size_t totalParticles() noexcept {
+        PROFILE();
+        size_t total = kSourceCells_ * kSourceParticles_;
+        for (size_t count : kSinkCounts_) {
+            total += count;
+        }
+        return total;
+    }
+
+    static constexpr size_t totalSources() noexcept {
+        PROFILE();
+        size_t total = 0;
+        for (size_t count : kSourceCounts_) {
+            total += count;
+        }
+        return total;
+    }
+
+    test::TestCells cells_;
+    std::array<ManagedArray<Coordinate>, NDIM> positions_;
+    ManagedArray<CellMultipole> multipoles_;
+    ManagedArray<fmm::FmmMultipoleSource> sources_;
+    ManagedArray<fmm::FmmParticleTarget> targets_;
+};
+
 void expectExpansionsNear(ManagedArray<CellExpansion>& device, ManagedArray<CellExpansion>& host, int order, char const* label) {
     PROFILE();
     for (size_t target = 0; target < kTargetCells; target++) {
@@ -323,6 +412,37 @@ TEST_F(FmmInteractionsCudaTest, M2pMatchesCpuAtEveryOrder) {
             double const accelerationScale = std::sqrt(static_cast<double>(host[1][sink]) * host[1][sink] + static_cast<double>(host[2][sink]) * host[2][sink] +
                 static_cast<double>(host[3][sink]) * host[3][sink]);
             EXPECT_NEAR(device[0][sink], host[0][sink], kDeviceTolerance * std::abs(host[0][sink])) << "order " << kOrder << " sink " << sink;
+            for (size_t axis = 0; axis < NDIM; axis++) {
+                EXPECT_NEAR(device[axis + 1][sink], host[axis + 1][sink], kDeviceTolerance * accelerationScale)
+                    << "order " << kOrder << " sink " << sink << " axis " << axis;
+            }
+        }
+    });
+}
+
+TEST_F(FmmInteractionsCudaTest, M2pTilesSourcesAndPassesOverLargeBuckets) {
+    PROFILE();
+    TiledM2pScene scene;
+    size_t const count = TiledM2pScene::particleCount();
+    forEachOrder([&](auto orderConstant) {
+        constexpr int kOrder = decltype(orderConstant)::value;
+        PROFILE();
+        std::array<ManagedArray<float>, NDIM + 1> device{
+            ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count)};
+        std::array<ManagedArray<float>, NDIM + 1> repeat{
+            ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count)};
+        std::array<ManagedArray<float>, NDIM + 1> host{
+            ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count), ManagedArray<float>(count)};
+        fmm::launchM2pCuda(scene.m2p(device, kOrder), stream()).get();
+        fmm::launchM2pCuda(scene.m2p(repeat, kOrder), stream()).get();
+        fmm::addM2pCpu(scene.m2p(host, kOrder));
+        for (size_t sink = 0; sink < count; sink++) {
+            double const accelerationScale = std::sqrt(static_cast<double>(host[1][sink]) * host[1][sink] + static_cast<double>(host[2][sink]) * host[2][sink] +
+                static_cast<double>(host[3][sink]) * host[3][sink]);
+            EXPECT_NEAR(device[0][sink], host[0][sink], kDeviceTolerance * std::abs(host[0][sink])) << "order " << kOrder << " sink " << sink;
+            for (size_t component = 0; component < NDIM + 1; component++) {
+                EXPECT_EQ(device[component][sink], repeat[component][sink]) << "order " << kOrder << " sink " << sink << " component " << component;
+            }
             for (size_t axis = 0; axis < NDIM; axis++) {
                 EXPECT_NEAR(device[axis + 1][sink], host[axis + 1][sink], kDeviceTolerance * accelerationScale)
                     << "order " << kOrder << " sink " << sink << " axis " << axis;

@@ -141,9 +141,10 @@ void addM2pCpu(FmmM2pRequest const& request);
 
 #ifdef COSMICTIGER_ENABLE_CUDA
 // The CUDA entry points evaluate in single precision with the same generated
-// operators. M2L and P2L assign one warp to each target and reduce its lanes in
-// a fixed order; M2P assigns one block to each target cell and one thread to
-// each sink. Every buffer and table must be CUDA-accessible and remain alive
+// operators. Every block is one warp and owns one target. M2L and P2L reduce
+// the lanes in a fixed order. M2P stages source multipoles in shared memory and
+// gives each lane every 32nd sink; targets of more than kBucketSize sinks take
+// additional passes. Every buffer and table must be CUDA-accessible and remain alive
 // until the returned future is ready, which happens only after the GPU work
 // completes. Invalid requests and CUDA failures are reported through the
 // future. An empty batch completes without touching pointers or the device.

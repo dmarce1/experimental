@@ -56,7 +56,7 @@ constexpr std::uint64_t kMaximumTestRung = 5;
 constexpr float kParticleMass = 0.25f;
 constexpr double kRawScale = 0x1p-32;
 
-static_assert(tree::kDefaultLeafSize == 100);
+static_assert(cosmictiger::gravity::kBucketSize == 128);
 
 // One locality with a one-cell ghost shell; every ghost cell is a periodic
 // image, so seam wrapping is exercised in every direction.
@@ -224,7 +224,7 @@ private:
             for (size_t axis = 0; axis < NDIM; axis++) {
                 raw[axis] = lower[axis] + uniform(generator);
             }
-            for (size_t particle = 0; particle < 2 * tree::kDefaultLeafSize; particle++) {
+            for (size_t particle = 0; particle < 2 * cosmictiger::gravity::kBucketSize; particle++) {
                 append(index, raw, generator);
             }
             break;
@@ -254,7 +254,6 @@ std::uint32_t rawAxis(Position const& position, size_t axis) {
 }
 
 struct CheckOptions {
-    size_t leafSize = tree::kDefaultLeafSize;
     tree::MultipoleCenter center = tree::MultipoleCenter::centerOfMass;
     // -1 checks geometric x, y, z alternation; otherwise every split is on this axis.
     int fixedAxis = -1;
@@ -298,9 +297,9 @@ size_t checkTree(tree::CellKdTrees const& trees, size_t root, ParticleRange rang
         if (node.leftChild == tree::kNoChild) {
             EXPECT_EQ(node.rightChild, tree::kNoChild);
             std::uint32_t const width = node.box.upper[expectedAxis] - node.box.lower[expectedAxis];
-            EXPECT_TRUE(count <= options.leafSize || width < 2) << "unsplit node of " << count << " particles";
+            EXPECT_TRUE(count <= cosmictiger::gravity::kBucketSize || width < 2) << "unsplit node of " << count << " particles";
         } else {
-            EXPECT_GT(count, options.leafSize);
+            EXPECT_GT(count, cosmictiger::gravity::kBucketSize);
             EXPECT_EQ(node.leftChild, index + 1);
             EXPECT_EQ(node.splitAxis, expectedAxis);
             auto const axis = static_cast<size_t>(node.splitAxis);
@@ -416,14 +415,12 @@ TEST(KdTree, RungThresholdOrderingSeparatesThenSortsByPosition) {
     auto const& particles = fixture.particles();
     tree::KdTreeParameters parameters{};
     parameters.particleMass = kParticleMass;
-    parameters.leafSize = 40;
     auto const trees =
         tree::CellKdTrees::buildByRungThreshold(grid, fixture.particles(), kThreshold, parameters, tree::GeometricMidpointSplitter{}, fixture.companions());
     EXPECT_EQ(trees.ordering(), tree::KdOrdering::rungThreshold);
     EXPECT_EQ(trees.rungThreshold(), kThreshold);
     fixture.expectPermutationPreserved();
     CheckOptions options{};
-    options.leafSize = parameters.leafSize;
     size_t visited = 0;
     for (size_t index = 0; index < layout.storedCellCount(); index++) {
         ParticleRange const range = grid.cell(layout.cellCoordinates(index)).localParticles;
@@ -509,9 +506,6 @@ TEST(KdTree, RejectsInvalidRequests) {
     KdTreeFixture fixture;
     tree::KdTreeParameters parameters{};
     EXPECT_THROW(tree::CellKdTrees::buildByPosition(fixture.grid(), fixture.particles(), parameters, BoundarySplitter{}), std::logic_error);
-    parameters.leafSize = 0;
-    EXPECT_THROW(tree::CellKdTrees::buildByPosition(fixture.grid(), fixture.particles(), parameters), std::invalid_argument);
-    parameters.leafSize = tree::kDefaultLeafSize;
     parameters.particleMass = 0.0f;
     EXPECT_THROW(tree::CellKdTrees::buildByPosition(fixture.grid(), fixture.particles(), parameters), std::invalid_argument);
     parameters.particleMass = 1.0f;

@@ -37,10 +37,29 @@ caller is responsible for choosing pairs that satisfy an acceptance criterion
 and for keeping softened pairs on the direct path.
 
 The CPU backend evaluates in double precision and adds each target's complete
-sum once. The CUDA backend evaluates in single precision: one warp per target
-for M2L and P2L, with a fixed-order butterfly reduction, and one block per
-target cell for M2P. All outputs are accumulated. Targets in one request must
-not alias.
+sum once. The CUDA backend evaluates in single precision. As in the old code,
+every block is a single warp and owns one target: M2L and P2L reduce their
+lanes with a fixed-order butterfly, and M2P follows the old `pc` kernel. All
+outputs are accumulated. Targets in one request must not alias.
+
+### M2P shared memory
+
+The M2P warp copies up to 32 source multipoles (`stfCount(p-1)` floats each)
+and their separations into shared memory, with consecutive lanes copying
+consecutive coefficients, then each lane applies every staged multipole to its
+sinks `lane, lane + 32, ...`. Sink offsets and field sums also live in shared
+memory, sized by the compile-time bucket size `gravity::kBucketSize = 128`.
+Each lane reads and writes only its own sink rows, so `__syncwarp()` after
+filling the tile and again before refilling it is the only synchronization;
+no `cuda::barrier` is needed. A target with more than `kBucketSize` sinks,
+which only a kd-tree leaf at fixed-point resolution can have, is evaluated in
+further passes over its sources. Every sink adds its sources in list order.
+
+| Order | Tile multipoles | Tile separations | Sink offsets | Sink fields | Total |
+| --- | --- | --- | --- | --- | --- |
+| 2 | 512 B | 384 B | 1536 B | 2048 B | 4.4 KiB |
+| 6 | 4608 B | 384 B | 1536 B | 2048 B | 8.4 KiB |
+| 9 | 10368 B | 384 B | 1536 B | 2048 B | 14.0 KiB |
 
 ## Defects found in the old kernels
 

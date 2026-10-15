@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <stddef.h>
+
 #include <cosmictiger/gravity/stf/generated/generated_config.hpp>
 
 #ifndef COSMICTIGER_MULTIPOLE_ORDER
@@ -40,6 +42,9 @@ inline constexpr int kMaximumFmmOrder = kExpansionOrder < kMultipoleOrder + 1 ? 
 // Default only: runtime gravity settings select the active near-cell width.
 inline constexpr int kPmmmNeighborWidth = 2;
 inline constexpr int kPmmmMaximumNeighborWidth = 2;
+// Tree nodes with at most this many particles are not split. CUDA FMM kernels
+// size their per-bucket shared memory from it.
+inline constexpr size_t kBucketSize = 128;
 static_assert(kMultipoleOrder >= stf::kMinOrder && kMultipoleOrder <= stf::kMaxOrder, "Cell multipole order is outside the generated range");
 static_assert(kExpansionOrder >= stf::kMinOrder && kExpansionOrder <= stf::kMaxOrder, "Cell expansion order is outside the generated range");
 static_assert(kMaximumFmmOrder == stf::kMaxOrder, "Every build must support all FMM orders through nine");
