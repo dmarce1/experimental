@@ -175,7 +175,7 @@ target_link_libraries(cosmictiger_fmm PUBLIC cosmictiger_stf HPX::hpx)
 target_compile_options(cosmictiger_fmm PRIVATE
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
 
-# Batched cell-level FMM interactions (M2L, P2L, M2P), not yet attached to evolution.
+# Batched cell-level FMM interactions (M2L, P2L, M2P), used by the tree near field.
 add_library(cosmictiger_fmm_interactions STATIC src/gravity/fmm/fmm_interactions.cpp)
 target_link_libraries(cosmictiger_fmm_interactions PUBLIC cosmictiger_dependencies)
 target_compile_options(cosmictiger_fmm_interactions PRIVATE
@@ -192,10 +192,16 @@ if(COSMICTIGER_ENABLE_CUDA)
     target_sources(cosmictiger_particles PRIVATE src/gravity/p2m_cuda.cu)
 endif()
 
-# Per-cell kd-trees for local FMM solves; position ordering is the active path.
+# Per-cell kd-trees for local FMM solves of the near region.
 add_library(cosmictiger_kd_tree STATIC src/gravity/tree/kd_tree.cpp)
 target_link_libraries(cosmictiger_kd_tree PUBLIC cosmictiger_particles)
 target_compile_options(cosmictiger_kd_tree PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
+
+# Local FMM solve of the PMMM near region over the per-cell kd-trees.
+add_library(cosmictiger_tree_near_field STATIC src/gravity/tree/tree_near_field.cpp)
+target_link_libraries(cosmictiger_tree_near_field PUBLIC cosmictiger_kd_tree cosmictiger_fmm_interactions)
+target_compile_options(cosmictiger_tree_near_field PRIVATE
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
 
 add_library(cosmictiger_initialization STATIC src/particle/particle_initialization.cpp src/fft/fft_hpx_exchange.cpp)
@@ -228,7 +234,7 @@ target_compile_options(cosmictiger_global_constants PRIVATE
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic;-fno-fast-math>")
 
 add_library(cosmictiger_kick STATIC src/gravity/kick/kick.cpp src/gravity/kick/kick_sums.cpp src/gravity/kick/pmmm_kick.cpp)
-target_link_libraries(cosmictiger_kick PUBLIC cosmictiger_global_constants cosmictiger_particles cosmictiger_fmm)
+target_link_libraries(cosmictiger_kick PUBLIC cosmictiger_global_constants cosmictiger_particles cosmictiger_fmm cosmictiger_tree_near_field)
 target_compile_options(cosmictiger_kick PRIVATE
     "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang>:-Wall;-Wextra;-Wpedantic>")
 if(COSMICTIGER_ENABLE_CUDA)
@@ -466,6 +472,24 @@ if(BUILD_TESTING)
         --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
         --hpx:ini=hpx.parcel.mpi.enable=0)
     set_tests_properties(cosmictiger.kd_tree PROPERTIES PROCESSORS 6 TIMEOUT 120 RUN_SERIAL TRUE)
+
+    # Newton's third law for complete direct and tree gravity evaluations.
+    add_executable(cosmictiger_force_symmetry_tests tests/test_main.cpp tests/gravity/kick/force_symmetry.cpp src/fft/fft_hpx_exchange.cpp)
+    target_link_libraries(cosmictiger_force_symmetry_tests PRIVATE cosmictiger_kick cosmictiger_pmmm GTest::gtest)
+    add_test(NAME cosmictiger.force_symmetry COMMAND cosmictiger_force_symmetry_tests
+        --hpx:threads=4 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+        --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+        --hpx:ini=hpx.parcel.mpi.enable=0)
+    set_tests_properties(cosmictiger.force_symmetry PROPERTIES PROCESSORS 6 TIMEOUT 600 RUN_SERIAL TRUE)
+
+    add_executable(cosmictiger_tree_near_field_tests tests/test_main.cpp tests/tree/tree_near_field.cpp)
+    target_link_libraries(cosmictiger_tree_near_field_tests PRIVATE cosmictiger_kick cosmictiger_tree_near_field GTest::gtest)
+    target_compile_options(cosmictiger_tree_near_field_tests PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:-fno-fast-math>")
+    add_test(NAME cosmictiger.tree_near_field COMMAND cosmictiger_tree_near_field_tests
+        --hpx:threads=4 --hpx:bind=none --hpx:ini=hpx.threadpools.io_pool_size=1
+        --hpx:ini=hpx.threadpools.timer_pool_size=1 --hpx:ini=hpx.threadpools.parcel_pool_size=1
+        --hpx:ini=hpx.parcel.mpi.enable=0)
+    set_tests_properties(cosmictiger.tree_near_field PROPERTIES PROCESSORS 6 TIMEOUT 300 RUN_SERIAL TRUE)
 
     set(symmetricRuntimeOptions --hpx:threads=1 --hpx:bind=none --hpx:localities=1 --hpx:console
         --hpx:ini=hpx.parcel.enable=0 --hpx:ini=hpx.parcel.mpi.enable=0

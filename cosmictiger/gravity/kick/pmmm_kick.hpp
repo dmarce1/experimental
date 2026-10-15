@@ -41,6 +41,10 @@
 
 namespace cosmictiger::gravity {
 
+namespace tree {
+    class CellKdTrees;
+}
+
 // Exclusive wall times: preparation joins both overlapping branches before
 // the local kick begins. Global diagnostic reductions are excluded.
 struct PmmmKickTimings {
@@ -119,6 +123,12 @@ public:
     PmmmNearField(CartesianGrid const& grid, ParticleStorage const& particles, SofteningLength softening, int ferrersOrder, float particleMass,
         double rungZeroTimestep, std::uint8_t activeRung, bool sumPotential = false, bool useCuda = false, PmmmProgressObserver const& observer = {},
         int ghostWidth = kPmmmNeighborWidth);
+    // Selects the near-region solver from parameters. The tree solver builds
+    // rung-threshold kd-trees first, which reorders particles within cells
+    // (with parameters.synchronizedMomenta) and invalidates rung ranges, so it
+    // needs mutable access; it is CPU-only.
+    static PmmmNearField prepare(CartesianGrid& grid, ParticleStorage& particles, SofteningLength softening, int ferrersOrder, float particleMass,
+        double rungZeroTimestep, std::uint8_t activeRung, KickParameters const& parameters, bool useCuda = false, PmmmProgressObserver const& observer = {});
     PmmmNearField(PmmmNearField&&) noexcept;
     PmmmNearField& operator=(PmmmNearField&&) noexcept;
     PmmmNearField(PmmmNearField const&) = delete;
@@ -139,6 +149,12 @@ public:
 #endif
 
 private:
+    struct TreeTag {};
+    PmmmNearField(TreeTag, CartesianGrid const& grid, ParticleStorage const& particles, SofteningLength softening, int ferrersOrder, float particleMass,
+        double rungZeroTimestep, std::uint8_t activeRung, KickParameters const& parameters, tree::CellKdTrees const& trees,
+        PmmmProgressObserver const& observer);
+    void prepareRanges(CartesianGrid const& grid, ParticleStorage const& particles);
+
     CartesianGrid const* grid_;
     ParticleStorage const* particles_;
     SofteningLength softening_;
@@ -177,11 +193,10 @@ void kickPmmmParticlesOverlappedCpu(CartesianGrid& grid, ParticleStorage& partic
     try {
         near = hpx::async(hpx::launch::async,
             hpx::annotated_function(
-                [&grid, &particles, &observer, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, sumPotential = parameters.sumPotential,
-                    ghostWidth = parameters.ghostWidth] {
+                [&grid, &particles, &observer, &parameters, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung] {
                     PROFILE();
-                    return PmmmNearField(
-                        grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, sumPotential, false, observer, ghostWidth);
+                    return PmmmNearField::prepare(
+                        grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters, false, observer);
                 },
                 "pmmmKick.async"));
     } catch (...) {
@@ -271,11 +286,10 @@ KickSums kickPmmmParticlesOverlappedCuda(CartesianGrid& grid, ParticleStorage& p
     try {
         near = hpx::async(hpx::launch::async,
             hpx::annotated_function(
-                [&grid, &particles, &observer, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, sumPotential = parameters.sumPotential,
-                    ghostWidth = parameters.ghostWidth] {
+                [&grid, &particles, &observer, &parameters, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung] {
                     PROFILE();
-                    return PmmmNearField(
-                        grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, sumPotential, true, observer, ghostWidth);
+                    return PmmmNearField::prepare(
+                        grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters, true, observer);
                 },
                 "pmmmKick.async"));
     } catch (...) {

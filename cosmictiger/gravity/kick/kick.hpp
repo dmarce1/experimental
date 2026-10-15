@@ -58,6 +58,11 @@ struct KickParameters {
     // Elapsed conformal time after timeTick, for a stop between block events.
     double conformalOffset = 0.0;
     int ghostWidth = kPmmmNeighborWidth;
+    // Near-region solver. The tree walk opens nodes with openingAngle and
+    // evaluates its multipole interactions at fmmOrder.
+    NearFieldMethod nearFieldMethod = NearFieldMethod::direct;
+    double openingAngle = kDefaultOpeningAngle;
+    int fmmOrder = kDefaultFmmOrder;
     // Optional snapshot-only output, indexed like the particle arrays. Capture
     // synchronized canonical momentum before either integration half-kick.
     double* synchronizedMomenta[NDIM]{};

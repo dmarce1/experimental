@@ -205,6 +205,8 @@ void evolveParticles(ParticleStorage& particles, CartesianGrid& grid, GlobalCons
 #endif
     initializationStage(EvolutionInitializationStage::gridAndRungs);
     prepareEvolutionGrid(particles, grid, constants.gravityMeshExponent, static_cast<size_t>(constants.ghostWidth), detail::evolutionOperation(state));
+    // The tree near field orders particles by kd-tree, not by rung.
+    grid.setRungSorting(constants.nearFieldMethod == gravity::NearFieldMethod::direct);
     detail::evolutionLocalPhase(state,
         hpx::annotated_function(
             [&] {
@@ -310,6 +312,9 @@ void evolveParticles(ParticleStorage& particles, CartesianGrid& grid, GlobalCons
         phaseTimes.multipole = double(hpx::chrono::high_resolution_clock::now() - multipoleStart) * kSecondsPerNanosecond;
         gravity::KickParameters parameters{constants.timestepEta, 0.0, state.scaleFactor, state.timeTick, phase, true};
         parameters.ghostWidth = constants.ghostWidth;
+        parameters.nearFieldMethod = constants.nearFieldMethod;
+        parameters.openingAngle = constants.openingAngle;
+        parameters.fmmOrder = constants.fmmOrder;
         parameters.minimumKickRung = activeEvolutionRung(state.timeTick);
         parameters.sumKinetic = true;
         parameters.momentaStaggered = state.momentaStaggered;

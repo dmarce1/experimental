@@ -21,6 +21,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <limits>
 #include <random>
 #include <stddef.h>
 #include <stdexcept>
@@ -247,6 +248,16 @@ std::uint32_t offsetOf(ParticleStorage const& particles, size_t axis, ParticleCo
     return particles.position(axis, particle).raw() - lower[axis];
 }
 
+std::uint32_t boxLower(tree::KdBox const& box, size_t axis) {
+    PROFILE();
+    return box.min(axis).raw();
+}
+
+std::uint32_t boxUpper(tree::KdBox const& box, size_t axis) {
+    PROFILE();
+    return box.max(axis).raw();
+}
+
 std::uint32_t rawAxis(Position const& position, size_t axis) {
     PROFILE();
     Coordinate const axes[NDIM] = {position.x, position.y, position.z};
@@ -272,8 +283,8 @@ size_t checkTree(tree::CellKdTrees const& trees, size_t root, ParticleRange rang
     EXPECT_EQ(rootNode.particles.end, range.end);
     EXPECT_EQ(rootNode.depth, 0u);
     for (size_t axis = 0; axis < NDIM; axis++) {
-        EXPECT_EQ(rootNode.box.lower[axis], 0u);
-        EXPECT_EQ(rootNode.box.upper[axis], kWidth);
+        EXPECT_EQ(boxLower(rootNode.box, axis), 0u);
+        EXPECT_EQ(boxUpper(rootNode.box, axis), kWidth);
     }
     size_t visited = 0;
     std::vector<size_t> pending{root};
@@ -285,25 +296,38 @@ size_t checkTree(tree::CellKdTrees const& trees, size_t root, ParticleRange rang
         ParticleCount const count = node.particles.end - node.particles.begin;
         int const expectedAxis = options.fixedAxis >= 0 ? options.fixedAxis : static_cast<int>(node.depth % NDIM);
 
-        // Particles lie in the node box.
+        // Particles lie in the node box, and the particle box is tight.
+        std::array<std::uint32_t, NDIM> minimum{};
+        std::array<std::uint32_t, NDIM> maximum{};
+        minimum.fill(std::numeric_limits<std::uint32_t>::max());
         for (ParticleCount particle = node.particles.begin; particle < node.particles.end; particle++) {
             for (size_t axis = 0; axis < NDIM; axis++) {
                 std::uint32_t const offset = offsetOf(particles, axis, particle, lower);
-                EXPECT_GE(offset, node.box.lower[axis]);
-                EXPECT_LT(offset, node.box.upper[axis]);
+                EXPECT_GE(offset, boxLower(node.box, axis));
+                EXPECT_LT(offset, boxUpper(node.box, axis));
+                minimum[axis] = std::min(minimum[axis], offset);
+                maximum[axis] = std::max(maximum[axis], offset);
+            }
+        }
+        if (count == 0) {
+            EXPECT_TRUE(node.particleBox.isEmpty());
+        } else {
+            for (size_t axis = 0; axis < NDIM; axis++) {
+                EXPECT_EQ(boxLower(node.particleBox, axis), minimum[axis]);
+                EXPECT_EQ(boxUpper(node.particleBox, axis), maximum[axis] + 1);
             }
         }
 
         if (node.leftChild == tree::kNoChild) {
             EXPECT_EQ(node.rightChild, tree::kNoChild);
-            std::uint32_t const width = node.box.upper[expectedAxis] - node.box.lower[expectedAxis];
+            std::uint32_t const width = boxUpper(node.box, expectedAxis) - boxLower(node.box, expectedAxis);
             EXPECT_TRUE(count <= cosmictiger::gravity::kBucketSize || width < 2) << "unsplit node of " << count << " particles";
         } else {
             EXPECT_GT(count, cosmictiger::gravity::kBucketSize);
             EXPECT_EQ(node.leftChild, index + 1);
             EXPECT_EQ(node.splitAxis, expectedAxis);
             auto const axis = static_cast<size_t>(node.splitAxis);
-            EXPECT_EQ(node.splitPlane, node.box.lower[axis] + (node.box.upper[axis] - node.box.lower[axis]) / 2);
+            EXPECT_EQ(node.splitPlane.raw(), boxLower(node.box, axis) + (boxUpper(node.box, axis) - boxLower(node.box, axis)) / 2);
             auto const& left = trees.node(node.leftChild);
             auto const& right = trees.node(node.rightChild);
             EXPECT_EQ(left.particles.begin, node.particles.begin);
@@ -312,12 +336,12 @@ size_t checkTree(tree::CellKdTrees const& trees, size_t root, ParticleRange rang
             EXPECT_EQ(left.depth, node.depth + 1);
             EXPECT_EQ(right.depth, node.depth + 1);
             for (size_t other = 0; other < NDIM; other++) {
-                std::uint32_t const leftUpper = other == axis ? node.splitPlane : node.box.upper[other];
-                std::uint32_t const rightLower = other == axis ? node.splitPlane : node.box.lower[other];
-                EXPECT_EQ(left.box.lower[other], node.box.lower[other]);
-                EXPECT_EQ(left.box.upper[other], leftUpper);
-                EXPECT_EQ(right.box.lower[other], rightLower);
-                EXPECT_EQ(right.box.upper[other], node.box.upper[other]);
+                std::uint32_t const leftUpper = other == axis ? node.splitPlane.raw() : boxUpper(node.box, other);
+                std::uint32_t const rightLower = other == axis ? node.splitPlane.raw() : boxLower(node.box, other);
+                EXPECT_EQ(boxLower(left.box, other), boxLower(node.box, other));
+                EXPECT_EQ(boxUpper(left.box, other), leftUpper);
+                EXPECT_EQ(boxLower(right.box, other), rightLower);
+                EXPECT_EQ(boxUpper(right.box, other), boxUpper(node.box, other));
             }
             pending.push_back(node.rightChild);
             pending.push_back(node.leftChild);
@@ -330,8 +354,12 @@ size_t checkTree(tree::CellKdTrees const& trees, size_t root, ParticleRange rang
             std::uint32_t const center = rawAxis(node.center, axis) - lower[axis];
             centerOffset[axis] = static_cast<double>(center);
             if (count == 0 || options.center == tree::MultipoleCenter::geometricCenter) {
-                EXPECT_EQ(center, node.box.lower[axis] + (node.box.upper[axis] - node.box.lower[axis]) / 2);
-            } else {
+                EXPECT_EQ(center, boxLower(node.box, axis) + (boxUpper(node.box, axis) - boxLower(node.box, axis)) / 2);
+            } else if (options.center == tree::MultipoleCenter::minimumRadius) {
+                if (node.leftChild == tree::kNoChild) {
+                    EXPECT_EQ(center, minimum[axis] + (maximum[axis] - minimum[axis]) / 2);
+                }
+            } else if (options.center == tree::MultipoleCenter::centerOfMass) {
                 double mean = 0.0;
                 for (ParticleCount particle = node.particles.begin; particle < node.particles.end; particle++) {
                     mean += static_cast<double>(offsetOf(particles, axis, particle, lower));
@@ -462,17 +490,117 @@ TEST(KdTree, GeometricCenterRetainsDipole) {
     EXPECT_TRUE(sawDipole);
 }
 
+TEST(KdTree, MinimumRadiusCentersBoundEveryParticleAndRetainDipole) {
+    PROFILE();
+    KdTreeFixture fixture;
+    auto& grid = fixture.grid();
+    auto const& layout = grid.layout();
+    tree::KdTreeParameters parameters{};
+    parameters.particleMass = kParticleMass;
+    parameters.multipoleCenter = tree::MultipoleCenter::minimumRadius;
+    auto const trees = tree::CellKdTrees::buildByPosition(grid, fixture.particles(), parameters, tree::GeometricMidpointSplitter{}, fixture.companions());
+    fixture.expectPermutationPreserved();
+    CheckOptions options{};
+    options.center = tree::MultipoleCenter::minimumRadius;
+    size_t visited = 0;
+    bool sawDipole = false;
+    for (size_t index = 0; index < layout.storedCellCount(); index++) {
+        size_t const root = trees.positionRoot(index);
+        visited += checkTree(
+            trees, root, grid.cell(layout.cellCoordinates(index)).localParticles, fixture.cellLower(index), fixture.particles(), layout.spacing(), options);
+        sawDipole = sawDipole || trees.multipole(root)[stf::index(1, 0, 0)] != 0.0f;
+    }
+    EXPECT_EQ(visited, trees.nodeCount());
+    EXPECT_TRUE(sawDipole);
+}
+
+// One crowded cell exceeds the exact-scan limit, so its upper nodes choose
+// between the particle-box half-diagonal and the children's enclosing sphere.
+TEST(KdTree, MinimumRadiusBoundsHoldAboveTheExactScanLimit) {
+    constexpr size_t kCrowdedCount = 20000;
+    constexpr std::uint32_t kWidth = std::uint32_t(1) << (kCoordinateBits - kCellExponent);
+    constexpr std::uint32_t kClusterWidth = kWidth / 16;
+    PROFILE();
+    CartesianGrid grid(kCellExponent, 0, 0, 1);
+    ParticleStorage particles;
+    auto const& layout = grid.layout();
+    std::mt19937 generator(kTestSeed);
+    std::uniform_int_distribution<std::uint32_t> uniform(0, kWidth - 1);
+    std::uniform_int_distribution<std::uint32_t> cluster(0, kClusterWidth - 1);
+    GridIndices const crowded{0, 0, 0};
+    for (size_t particle = 0; particle < kCrowdedCount; particle++) {
+        std::array<Coordinate, NDIM> position{};
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            position[axis] = Coordinate::fromRaw(particle % 3 == 0 ? uniform(generator) : kWidth / 4 + cluster(generator));
+        }
+        particles.append(position, {0.0f, 0.0f, 0.0f}, 0);
+    }
+    for (size_t index = 0; index < layout.storedCellCount(); index++) {
+        auto const coordinates = layout.cellCoordinates(index);
+        ParticleRange const range = coordinates == crowded ? ParticleRange{0, particles.size()} : ParticleRange{particles.size(), particles.size()};
+        if (layout.isInterior(coordinates)) {
+            grid.setInteriorRange(coordinates, range);
+        } else {
+            grid.setGhostRanges(coordinates, range, range);
+        }
+    }
+    tree::KdTreeParameters parameters{};
+    parameters.particleMass = kParticleMass;
+    parameters.multipoleCenter = tree::MultipoleCenter::minimumRadius;
+    auto const trees = tree::CellKdTrees::buildByPosition(grid, particles, parameters);
+    CheckOptions options{};
+    options.center = tree::MultipoleCenter::minimumRadius;
+    size_t const index = layout.cellIndex(crowded);
+    checkTree(trees, trees.positionRoot(index), {0, particles.size()}, {}, particles, layout.spacing(), options);
+}
+
+// A ghost copy of a cell may hold its particles in another order; the tree
+// geometry must not depend on it.
+TEST(KdTree, TreeGeometryIsIndependentOfParticleOrder) {
+    PROFILE();
+    for (auto const center : {tree::MultipoleCenter::centerOfMass, tree::MultipoleCenter::minimumRadius}) {
+        KdTreeFixture forward;
+        KdTreeFixture reversed;
+        auto const& layout = forward.grid().layout();
+        for (size_t index = 0; index < layout.storedCellCount(); index++) {
+            ParticleRange const range = reversed.grid().cell(layout.cellCoordinates(index)).localParticles;
+            for (ParticleCount offset = 0; offset < (range.end - range.begin) / 2; offset++) {
+                reversed.particles().swapParticles(range.begin + offset, range.end - 1 - offset);
+            }
+        }
+        tree::KdTreeParameters parameters{};
+        parameters.particleMass = kParticleMass;
+        parameters.multipoleCenter = center;
+        auto const first = tree::CellKdTrees::buildByPosition(forward.grid(), forward.particles(), parameters);
+        auto const second = tree::CellKdTrees::buildByPosition(reversed.grid(), reversed.particles(), parameters);
+        ASSERT_EQ(first.nodeCount(), second.nodeCount());
+        for (size_t index = 0; index < first.nodeCount(); index++) {
+            auto const& a = first.node(index);
+            auto const& b = second.node(index);
+            EXPECT_EQ(a.particles.begin, b.particles.begin);
+            EXPECT_EQ(a.particles.end, b.particles.end);
+            EXPECT_EQ(a.leftChild, b.leftChild);
+            EXPECT_TRUE(a.box == b.box);
+            EXPECT_TRUE(a.particleBox == b.particleBox);
+            for (size_t axis = 0; axis < NDIM; axis++) {
+                EXPECT_EQ(rawAxis(a.center, axis), rawAxis(b.center, axis));
+            }
+            EXPECT_EQ(a.radius, b.radius) << "node " << index;
+        }
+    }
+}
+
 // Splitting criteria are replaceable: this one always halves the x extent.
 class XOnlySplitter final : public tree::KdSplitter {
 public:
     tree::KdSplit chooseSplit(tree::KdSplitContext const& node) const override {
         PROFILE();
-        std::uint32_t const lower = node.box.lower[0];
-        std::uint32_t const upper = node.box.upper[0];
+        std::uint32_t const lower = boxLower(node.box, 0);
+        std::uint32_t const upper = boxUpper(node.box, 0);
         if (upper - lower < 2) {
             return {};
         }
-        return {true, 0, lower + (upper - lower) / 2};
+        return {true, 0, Coordinate::fromRaw(lower + (upper - lower) / 2)};
     }
 };
 
@@ -480,7 +608,7 @@ class BoundarySplitter final : public tree::KdSplitter {
 public:
     tree::KdSplit chooseSplit(tree::KdSplitContext const& node) const override {
         PROFILE();
-        return {true, 1, node.box.lower[1]};
+        return {true, 1, node.box.min(1)};
     }
 };
 

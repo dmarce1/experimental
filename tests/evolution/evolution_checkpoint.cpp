@@ -335,6 +335,54 @@ TEST_F(EvolutionCheckpointTest, PreservesNondefaultFmmOrder) {
     EXPECT_EQ(restored.state.timeTick, original.state.timeTick);
 }
 
+TEST_F(EvolutionCheckpointTest, PreservesTreeNearFieldAndOpeningAngle) {
+    PROFILE();
+    CheckpointDirectory directory;
+    auto const filename = directory.file("tree_near_field.silo");
+    auto original = sampleMetadata();
+    original.constants.nearFieldMethod = cosmictiger::gravity::NearFieldMethod::tree;
+    original.constants.openingAngle = 0.7;
+    writeSample(filename, original);
+    auto const restored = cosmictiger::readEvolutionCheckpointMetadata(filename);
+    EXPECT_EQ(restored.constants.nearFieldMethod, cosmictiger::gravity::NearFieldMethod::tree);
+    EXPECT_EQ(restored.constants.openingAngle, 0.7);
+}
+
+TEST_F(EvolutionCheckpointTest, ReadsVersionNineCheckpointWithDirectNearField) {
+    constexpr std::uint64_t kMagic = 0x435445564F4C3031ULL;
+    constexpr std::uint32_t kVersion = 9;
+    constexpr auto kFlags = hpx::serialization::archive_flags::endian_little | hpx::serialization::archive_flags::disable_array_optimization |
+        hpx::serialization::archive_flags::disable_data_chunking;
+    PROFILE();
+
+    CheckpointDirectory directory;
+    auto const filename = directory.file("version_nine.silo");
+    auto original = sampleMetadata();
+    original.constants.ghostWidth = 1;
+    original.constants.fmmOrder = cosmictiger::gravity::kMinimumFmmOrder;
+    // The v9 format omits the near-field settings even when they differ.
+    original.constants.nearFieldMethod = cosmictiger::gravity::NearFieldMethod::tree;
+    original.constants.openingAngle = 0.7;
+    std::vector<char> payload;
+    {
+        hpx::serialization::output_archive archive(payload, kFlags);
+        archive << kMagic << kVersion;
+        cosmictiger::serializeGlobalConstantsVersion9(archive, original.constants);
+        archive << original.state;
+    }
+    cosmictiger::CartesianGrid grid(2, 0, 0, 1);
+    cosmictiger::ParticleStorage particles;
+    populateParticles(particles, grid);
+    cosmictiger::detail::EvolutionSiloScalars const scalars{original.state.scaleFactor, original.state.conformalDerivative,
+        cosmictiger::physicalTimeInYears(original.state.physicalTime, original.constants.cosmology), 1.03825};
+    cosmictiger::detail::writeParticleSiloEvolutionPayload(filename, particles, grid, original.initial, payload, scalars);
+    auto const restored = cosmictiger::readEvolutionCheckpointMetadata(filename);
+    EXPECT_EQ(restored.constants.fmmOrder, cosmictiger::gravity::kMinimumFmmOrder);
+    EXPECT_EQ(restored.constants.nearFieldMethod, cosmictiger::gravity::NearFieldMethod::direct);
+    EXPECT_EQ(restored.constants.openingAngle, cosmictiger::gravity::kDefaultOpeningAngle);
+    EXPECT_EQ(restored.state.timeTick, original.state.timeTick);
+}
+
 TEST_F(EvolutionCheckpointTest, ReadsVersionEightCheckpointWithDefaultFmmOrderAndSavedSoftening) {
     constexpr std::uint64_t kMagic = 0x435445564F4C3031ULL;
     constexpr std::uint32_t kVersion = 8;

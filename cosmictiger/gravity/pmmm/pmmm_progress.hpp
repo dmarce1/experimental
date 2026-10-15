@@ -41,7 +41,8 @@ enum class PmmmProgressStage {
     particleKick,
     cudaKick,
     particleSort,
-    diagnosticReduction
+    diagnosticReduction,
+    treeGravity
 };
 
 struct PmmmProgress {

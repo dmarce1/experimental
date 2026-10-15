@@ -27,9 +27,12 @@
  * The splitting criterion is a KdSplitter; the default splits at the geometric
  * center of the node box along x, y, z in turn (axis = depth mod NDIM).
  *
- * Node boxes and split planes are 32-bit fixed-point offsets from the cell's
- * lower corner. Wrapping subtraction makes ghost copies across the periodic
- * seam work unchanged, and dyadic midpoints keep geometric splits exact.
+ * Node boxes, particle bounding boxes, and split planes are Box<Coordinate>
+ * values holding 32-bit fixed-point offsets from the cell's lower corner, not
+ * absolute positions. A cell is narrower than the periodic box, so no offset
+ * box reaches the periodic endpoint. Wrapping subtraction makes ghost copies
+ * across the periodic seam work unchanged, and dyadic midpoints keep geometric
+ * splits exact.
  *
  * Two particle orderings are provided. Position ordering builds one tree per
  * cell. Rung-threshold ordering first separates each cell into particles with
@@ -41,7 +44,10 @@
  * Node multipoles use the CellMultipole layout and the cell spacing as their
  * scale, matching the cell-level FMM interactions. By default they are taken
  * about the node center of mass, where the dipole vanishes and is stored as
- * zero; MultipoleCenter::geometricCenter keeps a computed dipole instead.
+ * zero; MultipoleCenter::geometricCenter and minimumRadius keep a computed
+ * dipole instead. Every geometric quantity (boxes, centers, radii) depends
+ * only on the set of particles in a node, never on their order, so a ghost
+ * copy of a cell builds the same tree geometry as its owner.
  */
 #pragma once
 
@@ -51,6 +57,7 @@
 #include <stddef.h>
 #include <vector>
 
+#include <cosmictiger/box.hpp>
 #include <cosmictiger/cartesian_grid.hpp>
 #include <cosmictiger/dimensions.hpp>
 #include <cosmictiger/particle/particle_storage.hpp>
@@ -60,12 +67,9 @@ namespace cosmictiger::gravity::tree {
 
 inline constexpr size_t kNoChild = std::numeric_limits<size_t>::max();
 
-// Half-open box [lower, upper) on each axis, in raw fixed-point offsets from
-// the lower corner of the tree's cell.
-struct KdBox {
-    std::array<std::uint32_t, NDIM> lower{};
-    std::array<std::uint32_t, NDIM> upper{};
-};
+// Half-open box [min, max) on each axis, holding fixed-point offsets from the
+// lower corner of the tree's cell rather than absolute positions.
+using KdBox = Box<Coordinate>;
 
 // One tree node. Child indices address the owning CellKdTrees node array, in
 // depth-first order with the left child immediately after its parent; leaves
@@ -73,12 +77,15 @@ struct KdBox {
 struct KdNode {
     ParticleRange particles;
     KdBox box;
+    // Tight bounds of the node's particle offsets, half-open: the largest
+    // offset on each axis is one raw unit below max. Empty for empty nodes.
+    KdBox particleBox;
     size_t leftChild = kNoChild;
     size_t rightChild = kNoChild;
     size_t depth = 0;
     // Left particles have offset[splitAxis] < splitPlane. Unused for leaves.
     int splitAxis = -1;
-    std::uint32_t splitPlane = 0;
+    Coordinate splitPlane{};
     // Multipole expansion center, an absolute unit-box position. Empty nodes
     // use their geometric center.
     Position center{};
@@ -105,7 +112,7 @@ struct KdSplitContext {
 struct KdSplit {
     bool split = false;
     int axis = 0;
-    std::uint32_t plane = 0;
+    Coordinate plane{};
 };
 
 // Splitting criterion. Implementations must be safe to call concurrently for
@@ -128,6 +135,12 @@ enum class MultipoleCenter {
     centerOfMass,
     // Geometric center of the node box; the dipole is retained.
     geometricCenter,
+    // The center giving the smallest radius bound among the candidates of the
+    // old CosmicTiger tree: for a leaf, the center of its particle bounding
+    // box; for an internal node, the smallest of that center (with an exact
+    // particle scan for small nodes or the box half-diagonal otherwise) and
+    // the sphere enclosing both children's spheres. The dipole is retained.
+    minimumRadius,
 };
 
 enum class KdOrdering {

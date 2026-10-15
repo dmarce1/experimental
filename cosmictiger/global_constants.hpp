@@ -65,6 +65,9 @@ struct GlobalConstantsData {
     // Local-expansion rank; cell source multipoles use one rank less.
     int fmmOrder = gravity::kDefaultFmmOrder;
     gravity::SofteningModel softeningModel = gravity::SofteningModel::ferrers;
+    // Solver choices; a restart may select different values.
+    gravity::NearFieldMethod nearFieldMethod = gravity::NearFieldMethod::direct;
+    double openingAngle = gravity::kDefaultOpeningAngle;
     double softeningCellFraction = 0.05;
     int softeningKernelOrder = 2;
     // Fraction of owned particles sampled for a direct periodic gravity comparison.
@@ -166,10 +169,17 @@ void serializeGlobalConstantsVersion8(Archive& archive, GlobalConstantsData& dat
 }
 
 template <typename Archive>
-void serialize(Archive& archive, GlobalConstantsData& data, unsigned) {
+void serializeGlobalConstantsVersion9(Archive& archive, GlobalConstantsData& data) {
     PROFILE();
     serializeGlobalConstantsVersion8(archive, data);
     archive & data.fmmOrder;
+}
+
+template <typename Archive>
+void serialize(Archive& archive, GlobalConstantsData& data, unsigned) {
+    PROFILE();
+    serializeGlobalConstantsVersion9(archive, data);
+    archive & data.nearFieldMethod & data.openingAngle;
 }
 
 namespace server {

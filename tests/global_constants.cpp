@@ -157,6 +157,43 @@ int hpx_main() {
         if (defaults.softeningModel != cosmictiger::gravity::SofteningModel::ferrers) {
             throw std::runtime_error("the default softening model must preserve Ferrers");
         }
+        if (defaults.nearFieldMethod != cosmictiger::gravity::NearFieldMethod::direct || defaults.openingAngle != cosmictiger::gravity::kDefaultOpeningAngle) {
+            throw std::runtime_error("the near field must default to direct P2P with the default opening angle");
+        }
+        auto treeNear =
+            cosmictiger::detail::parseOptions(options, {"global_constants_test", "--gravity.nearField=tree", "--gravity.openingAngle=0.7"}, localities.size());
+        if (treeNear.nearFieldMethod != cosmictiger::gravity::NearFieldMethod::tree || treeNear.openingAngle != 0.7) {
+            throw std::runtime_error("command-line tree near field and opening angle were not retained");
+        }
+        {
+            std::vector<char> bytes;
+            {
+                hpx::serialization::output_archive archive(bytes);
+                archive << treeNear;
+            }
+            cosmictiger::GlobalConstantsData restored;
+            hpx::serialization::input_archive archive(bytes, bytes.size());
+            archive >> restored;
+            if (restored.nearFieldMethod != treeNear.nearFieldMethod || restored.openingAngle != treeNear.openingAngle) {
+                throw std::runtime_error("serialization did not retain the near-field method and opening angle");
+            }
+        }
+        for (std::vector<std::string> const arguments :
+            {std::vector<std::string>{"--gravity.nearField=fmm"}, std::vector<std::string>{"--gravity.openingAngle=0"},
+                std::vector<std::string>{"--gravity.openingAngle=1"}, std::vector<std::string>{"--gravity.openingAngle=-0.5"},
+                std::vector<std::string>{"--gravity.nearField=tree", "--gravity.softening.model=plummer"}}) {
+            std::vector<std::string> commandLine{"global_constants_test"};
+            commandLine.insert(commandLine.end(), arguments.begin(), arguments.end());
+            bool rejected = false;
+            try {
+                (void) cosmictiger::detail::parseOptions(options, commandLine, localities.size());
+            } catch (std::invalid_argument const&) {
+                rejected = true;
+            }
+            if (!rejected) {
+                throw std::runtime_error("invalid near-field option was accepted: " + arguments.back());
+            }
+        }
         auto plummer = cosmictiger::detail::parseOptions(options,
             {"global_constants_test", "--gravity.softening.model=plummer", "--gravity.meshExponent=3", "--gravity.softening.cellFraction=0.125"},
             localities.size());

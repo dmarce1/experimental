@@ -185,6 +185,8 @@ namespace detail {
             return "sorting particles within cells by timestep rung";
         case PmmmProgressStage::diagnosticReduction:
             return "combining force, potential, kinetic, particle-count and maximum-rung diagnostics across localities";
+        case PmmmProgressStage::treeGravity:
+            return "kd-tree near-field acceleration and potential (overlaps periodic solve)";
         }
         throw std::logic_error("unknown gravity initialization progress stage");
     }
@@ -259,6 +261,8 @@ void writeInitialConditions() {
             hpx::cout << "Initializing: computing requested gravity fields for initial output\n" << hpx::iostreams::flush_type{};
         }
         prepareEvolutionGrid(initial.particles, initial.grid, data.gravityMeshExponent, static_cast<size_t>(data.ghostWidth), kGridOperation);
+        // The tree near field orders particles by kd-tree, not by rung.
+        initial.grid.setRungSorting(data.nearFieldMethod == gravity::NearFieldMethod::direct);
         auto const localities = hpx::find_all_localities();
 
         exchangeGhostParticles(initial.particles, initial.grid, localities, kGhostOperation);
@@ -288,6 +292,9 @@ void writeInitialConditions() {
         FftHpxExchange exchange(fftLocalities, 0x4943504D4D4D4646ULL, convolution.fftLocalityIndex());
         gravity::KickParameters parameters{data.timestepEta, 0.0, data.initialScaleFactor, 0, gravity::KickPhase::diagnostics, data.outputPotential};
         parameters.ghostWidth = data.ghostWidth;
+        parameters.nearFieldMethod = data.nearFieldMethod;
+        parameters.openingAngle = data.openingAngle;
+        parameters.fmmOrder = data.fmmOrder;
         auto computeFarField = hpx::annotated_function(
             [&] {
                 PROFILE();
@@ -726,6 +733,9 @@ int hpx_main(hpx::program_options::variables_map& vm) {
             data.cudaKick = requested.cudaKick;
             data.cudaMultipole = requested.cudaMultipole;
             data.cudaDirect = requested.cudaDirect;
+            data.nearFieldMethod = requested.nearFieldMethod;
+            data.openingAngle = requested.openingAngle;
+            cosmictiger::validateNearFieldOptions(data);
             data.directSinkFraction = requested.directSinkFraction;
             data.directSeed = requested.directSeed;
             cosmictiger::applyLightconeRestartOptions(vm, data);
@@ -775,6 +785,11 @@ int hpx_main(hpx::program_options::variables_map& vm) {
                   << "  Evolution mesh: " << constants.gridSideLength << " per axis, ghost width: " << constants.ghostWidth << " cells\n";
         hpx::cout << "  Execution: drift=" << (constants.cudaDrift ? "CUDA" : "CPU") << ", kick=" << (constants.cudaKick ? "CUDA" : "CPU")
                   << ", multipole=" << (constants.cudaMultipole ? "CUDA" : "CPU") << '\n'
+                  << "  Near field: "
+                  << (constants.nearFieldMethod == cosmictiger::gravity::NearFieldMethod::tree ?
+                             "kd-tree FMM, opening angle " + std::to_string(constants.openingAngle) :
+                             std::string("direct P2P"))
+                  << '\n'
                   << hpx::iostreams::flush_type{};
         if (constants.evolve) {
             auto const outputParent = hpx::filesystem::path(constants.checkpointPrefix).parent_path();

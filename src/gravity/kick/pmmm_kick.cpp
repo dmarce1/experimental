@@ -23,6 +23,8 @@
 
 #include <cosmictiger/gravity/direct/direct_interactions.hpp>
 #include <cosmictiger/gravity/stf/operators.hpp>
+#include <cosmictiger/gravity/tree/kd_tree.hpp>
+#include <cosmictiger/gravity/tree/tree_near_field.hpp>
 #include <cosmictiger/parallel.hpp>
 
 #include <algorithm>
@@ -436,9 +438,15 @@ namespace {
                 "pmmmKick.evaluateFarCandidateChunk"));
         progress.finish();
         if (parameters.phase != KickPhase::diagnostics) {
-            reportPmmmProgress(observer, PmmmProgressStage::particleSort, 0, 1);
+            // Without rung sorting this only invalidates the rung ranges.
+            bool const sorting = grid.rungSorting();
+            if (sorting) {
+                reportPmmmProgress(observer, PmmmProgressStage::particleSort, 0, 1);
+            }
             grid.sortParticlesByRung(particles, parameters.synchronizedMomentumCount == 0 ? nullptr : parameters.synchronizedMomenta);
-            reportPmmmProgress(observer, PmmmProgressStage::particleSort, 1, 1);
+            if (sorting) {
+                reportPmmmProgress(observer, PmmmProgressStage::particleSort, 1, 1);
+            }
         }
     }
 
@@ -475,33 +483,14 @@ PmmmNearField::PmmmNearField(CartesianGrid const& grid, ParticleStorage const& p
   , ghostWidth_(ghostWidth) {
     PROFILE();
     detail::checkPmmmParameters(grid, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, ghostWidth_);
-    auto const& layout = grid.layout();
-    size_t const cellCount = layout.interiorCellCount();
-    if (cellCount >= offsets_.max_size()) {
-        throw std::length_error("PMMM near-field offsets exceed addressable memory");
-    }
     if (cudaEnabled_) {
         detail::reportPmmmProgress(observer, PmmmProgressStage::cudaPreparation, 0, 1);
     }
-    ranges_.resize(cellCount);
-    offsets_.resize(cellCount + 1);
-    // Consume ranges to size the compact task output, without examining
-    // particle data or allocating lanes for the appended ghost suffix.
-    for (size_t cellIndex = 0; cellIndex < cellCount; cellIndex++) {
-        auto const coordinates = detail::interiorCoordinates(cellIndex, layout.interiorSideLength());
-        auto const range = detail::candidateSinks(grid.cell(coordinates), particles, activeRung);
-        if (cudaEnabled_ && (range.begin > range.end || range.end > particles.size())) {
-            throw std::out_of_range("PMMM CUDA sink range exceeds particle storage");
-        }
-        ranges_[cellIndex] = range;
-        ParticleCount const count = range.end - range.begin;
-        if (count > offsets_.max_size() - offsets_[cellIndex]) {
-            throw std::length_error("PMMM near-field lanes exceed addressable memory");
-        }
-        offsets_[cellIndex + 1] = offsets_[cellIndex] + static_cast<size_t>(count);
-    }
+    prepareRanges(grid, particles);
 #ifdef COSMICTIGER_ENABLE_CUDA
     if (cudaEnabled_) {
+        auto const& layout = grid.layout();
+        size_t const cellCount = layout.interiorCellCount();
         size_t const candidateCount = offsets_.back();
         if (candidateCount == 0) {
             detail::reportPmmmProgress(observer, PmmmProgressStage::cudaPreparation, 1, 1);
@@ -562,6 +551,112 @@ PmmmNearField::PmmmNearField(CartesianGrid const& grid, ParticleStorage const& p
     default:
         throw std::invalid_argument("PMMM kick Ferrers order must be between zero and three");
     }
+}
+
+void PmmmNearField::prepareRanges(CartesianGrid const& grid, ParticleStorage const& particles) {
+    PROFILE();
+    auto const& layout = grid.layout();
+    size_t const cellCount = layout.interiorCellCount();
+    if (cellCount >= offsets_.max_size()) {
+        throw std::length_error("PMMM near-field offsets exceed addressable memory");
+    }
+    ranges_.resize(cellCount);
+    offsets_.resize(cellCount + 1);
+    // Consume ranges to size the compact task output, without examining
+    // particle data or allocating lanes for the appended ghost suffix.
+    for (size_t cellIndex = 0; cellIndex < cellCount; cellIndex++) {
+        auto const coordinates = detail::interiorCoordinates(cellIndex, layout.interiorSideLength());
+        auto const range = detail::candidateSinks(grid.cell(coordinates), particles, activeRung_);
+        if (cudaEnabled_ && (range.begin > range.end || range.end > particles.size())) {
+            throw std::out_of_range("PMMM CUDA sink range exceeds particle storage");
+        }
+        ranges_[cellIndex] = range;
+        ParticleCount const count = range.end - range.begin;
+        if (count > offsets_.max_size() - offsets_[cellIndex]) {
+            throw std::length_error("PMMM near-field lanes exceed addressable memory");
+        }
+        offsets_[cellIndex + 1] = offsets_[cellIndex] + static_cast<size_t>(count);
+    }
+}
+
+// The tree walk writes unit-mass fields per particle; each candidate's first
+// lane receives its total, so the CPU kick applies the particle mass and
+// combines the far expansion exactly as for the direct near field.
+PmmmNearField::PmmmNearField(TreeTag, CartesianGrid const& grid, ParticleStorage const& particles, SofteningLength softening, int ferrersOrder,
+    float particleMass, double rungZeroTimestep, std::uint8_t activeRung, KickParameters const& parameters, tree::CellKdTrees const& trees,
+    PmmmProgressObserver const& observer)
+  : grid_(&grid)
+  , particles_(&particles)
+  , softening_(softening)
+  , ferrersOrder_(ferrersOrder)
+  , particleMass_(particleMass)
+  , rungZeroTimestep_(rungZeroTimestep)
+  , activeRung_(activeRung)
+  , computePotential_(particles.storesPotential() || parameters.sumPotential)
+  , cudaEnabled_(false)
+  , ghostWidth_(parameters.ghostWidth) {
+    PROFILE();
+    detail::checkPmmmParameters(grid, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, ghostWidth_);
+    prepareRanges(grid, particles);
+    lanes_.resize(offsets_.back());
+    detail::reportPmmmProgress(observer, PmmmProgressStage::treeGravity, 0, 1);
+    std::array<std::vector<float>, NDIM> accelerations;
+    std::vector<float> potentials;
+    for (auto& values : accelerations) {
+        values.assign(particles.size(), 0.0f);
+    }
+    if (computePotential_) {
+        potentials.assign(particles.size(), 0.0f);
+    }
+    tree::TreeNearFieldRequest request;
+    request.grid = &grid;
+    request.particles = &particles;
+    request.trees = &trees;
+    request.softening = softening;
+    request.ferrersOrder = ferrersOrder;
+    request.fmmOrder = parameters.fmmOrder;
+    request.ghostWidth = ghostWidth_;
+    request.openingAngle = parameters.openingAngle;
+    request.activeRung = activeRung;
+    request.computePotential = computePotential_;
+    for (size_t axis = 0; axis < NDIM; axis++) {
+        request.accelerations[axis] = accelerations[axis].data();
+    }
+    request.potentials = computePotential_ ? potentials.data() : nullptr;
+    tree::evaluateTreeNearField(request);
+    for (size_t cellIndex = 0; cellIndex < ranges_.size(); cellIndex++) {
+        auto const range = ranges_[cellIndex];
+        for (ParticleCount sink = range.begin; sink < range.end; sink++) {
+            auto& lanes = lanes_[offsets_[cellIndex] + static_cast<size_t>(sink - range.begin)];
+            lanes.x[0] = accelerations[0][sink];
+            lanes.y[0] = accelerations[1][sink];
+            lanes.z[0] = accelerations[2][sink];
+            if (computePotential_) {
+                lanes.potential[0] = potentials[sink];
+            }
+        }
+    }
+    detail::reportPmmmProgress(observer, PmmmProgressStage::treeGravity, 1, 1);
+}
+
+PmmmNearField PmmmNearField::prepare(CartesianGrid& grid, ParticleStorage& particles, SofteningLength softening, int ferrersOrder, float particleMass,
+    double rungZeroTimestep, std::uint8_t activeRung, KickParameters const& parameters, bool useCuda, PmmmProgressObserver const& observer) {
+    PROFILE();
+    if (parameters.nearFieldMethod == NearFieldMethod::direct) {
+        return PmmmNearField(grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters.sumPotential, useCuda, observer,
+            parameters.ghostWidth);
+    }
+    if (useCuda) {
+        throw std::invalid_argument("the tree near field is not yet supported by the CUDA kick");
+    }
+    detail::checkPmmmParameters(grid, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters.ghostWidth);
+    tree::KdTreeParameters treeParameters;
+    treeParameters.multipoleCenter = tree::MultipoleCenter::minimumRadius;
+    // Unit masses give the raw fields the kick scales by particleMass.
+    treeParameters.particleMass = 1.0f;
+    auto const trees = tree::CellKdTrees::buildByRungThreshold(grid, particles, activeRung, treeParameters, tree::GeometricMidpointSplitter{},
+        parameters.synchronizedMomentumCount == 0 ? nullptr : parameters.synchronizedMomenta);
+    return PmmmNearField(TreeTag{}, grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters, trees, observer);
 }
 
 PmmmNearField::PmmmNearField(PmmmNearField&& other) noexcept
@@ -739,6 +834,11 @@ void kickPmmmParticlesCpu(CartesianGrid& grid, ParticleStorage& particles, Softe
     double rungZeroTimestep, std::uint8_t activeRung, KickParameters const& parameters, KickSums* sums) {
     PROFILE();
     detail::checkPmmmParameters(grid, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters.ghostWidth);
+    if (parameters.nearFieldMethod == NearFieldMethod::tree) {
+        PmmmNearField::prepare(grid, particles, softening, ferrersOrder, particleMass, rungZeroTimestep, activeRung, parameters)
+            .kick(grid, particles, parameters, sums);
+        return;
+    }
     switch (ferrersOrder) {
     case 0:
         detail::kickPmmm<0>(grid, particles, softening, particleMass, rungZeroTimestep, activeRung, parameters, sums);

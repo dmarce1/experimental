@@ -23,6 +23,7 @@
 #include <cmath>
 #include <cstdint>
 #include <initializer_list>
+#include <limits>
 #include <stddef.h>
 #include <stdexcept>
 #include <utility>
@@ -61,6 +62,27 @@ namespace detail {
     std::uint32_t boxOffset(ParticleStorage const& particles, size_t axis, ParticleCount particle, std::array<std::uint32_t, NDIM> const& cellLower) {
         PROFILE();
         return particles.position(axis, particle).raw() - cellLower[axis];
+    }
+
+    std::uint32_t lowerRaw(KdBox const& box, size_t axis) {
+        PROFILE();
+        return box.min(axis).raw();
+    }
+
+    std::uint32_t upperRaw(KdBox const& box, size_t axis) {
+        PROFILE();
+        return box.max(axis).raw();
+    }
+
+    KdBox makeBox(std::array<std::uint32_t, NDIM> const& lower, std::array<std::uint32_t, NDIM> const& upper) {
+        PROFILE();
+        KdBox::Point lowerPoint{};
+        KdBox::Point upperPoint{};
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            lowerPoint[axis] = Coordinate::fromRaw(lower[axis]);
+            upperPoint[axis] = Coordinate::fromRaw(upper[axis]);
+        }
+        return KdBox(lowerPoint, upperPoint);
     }
 
     void setAxis(Position& position, size_t axis, Coordinate value) {
@@ -118,11 +140,11 @@ namespace detail {
             size_t parent;
             bool right;
         };
-        KdBox cellBox{};
+        std::array<std::uint32_t, NDIM> cellUpper{};
         for (size_t axis = 0; axis < NDIM; axis++) {
-            cellBox.upper[axis] = frame.width;
+            cellUpper[axis] = frame.width;
         }
-        std::vector<Pending> pending{{range, cellBox, 0, kNoChild, false}};
+        std::vector<Pending> pending{{range, makeBox({}, cellUpper), 0, kNoChild, false}};
         while (!pending.empty()) {
             Pending const item = pending.back();
             pending.pop_back();
@@ -143,35 +165,93 @@ namespace detail {
                         throw std::logic_error("kd-tree split axis is out of range");
                     }
                     size_t const axis = static_cast<size_t>(split.axis);
-                    if (split.plane <= item.box.lower[axis] || split.plane >= item.box.upper[axis]) {
+                    std::uint32_t const plane = split.plane.raw();
+                    if (plane <= lowerRaw(item.box, axis) || plane >= upperRaw(item.box, axis)) {
                         throw std::logic_error("kd-tree split plane must lie strictly inside the node box");
                     }
                     ParticleCount const middle = partitionRange(particles, item.particles, companionFields,
-                        [&](ParticleCount particle) { return boxOffset(particles, axis, particle, frame.lower) >= split.plane; });
+                        [&](ParticleCount particle) { return boxOffset(particles, axis, particle, frame.lower) >= plane; });
                     node.splitAxis = split.axis;
                     node.splitPlane = split.plane;
-                    Pending left{{item.particles.begin, middle}, item.box, item.depth + 1, index, false};
-                    left.box.upper[axis] = split.plane;
-                    Pending right{{middle, item.particles.end}, item.box, item.depth + 1, index, true};
-                    right.box.lower[axis] = split.plane;
-                    pending.push_back(right);
-                    pending.push_back(left);
+                    auto const [leftBox, rightBox] = item.box.split(axis, split.plane);
+                    pending.push_back({{middle, item.particles.end}, rightBox, item.depth + 1, index, true});
+                    pending.push_back({{item.particles.begin, middle}, leftBox, item.depth + 1, index, false});
                 }
             }
             trees.nodes.push_back(node);
         }
     }
 
-    // Fill centers, masses, radii, and multipoles. Children follow their
-    // parents, so a reverse pass finishes both children before each parent.
-    // Moments are accumulated in double and rounded once for storage.
+    using RawPoint = std::array<std::uint32_t, NDIM>;
+
+    // Distance in unit-box coordinates between two raw offsets of one cell.
+    double rawDistance(RawPoint const& first, RawPoint const& second) {
+        constexpr double kRawScale = 0x1p-32;
+        PROFILE();
+        double squared = 0.0;
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            double const delta = (static_cast<double>(first[axis]) - static_cast<double>(second[axis])) * kRawScale;
+            squared += delta * delta;
+        }
+        return std::sqrt(squared);
+    }
+
+    // The largest distance from center to a particle of range.
+    double scanRadius(ParticleStorage const& particles, ParticleRange range, CellFrame const& frame, RawPoint const& center) {
+        PROFILE();
+        double radius = 0.0;
+        for (ParticleCount particle = range.begin; particle < range.end; particle++) {
+            RawPoint offset{};
+            for (size_t axis = 0; axis < NDIM; axis++) {
+                offset[axis] = boxOffset(particles, axis, particle, frame.lower);
+            }
+            radius = std::max(radius, rawDistance(offset, center));
+        }
+        return radius;
+    }
+
+    // The sphere enclosing two nonempty child spheres. The exact center lies
+    // on the line between the child centers; rounding it to a raw offset can
+    // move it, so the radius is recomputed from the rounded center and stays
+    // an upper bound of both children's bounds.
+    std::pair<RawPoint, double> enclosingSphere(RawPoint const& leftCenter, double leftRadius, RawPoint const& rightCenter, double rightRadius) {
+        constexpr double kHalf = 0.5;
+        PROFILE();
+        double const separation = rawDistance(leftCenter, rightCenter);
+        if (separation + rightRadius <= leftRadius) {
+            return {leftCenter, leftRadius};
+        }
+        if (separation + leftRadius <= rightRadius) {
+            return {rightCenter, rightRadius};
+        }
+        double const exactRadius = kHalf * (separation + leftRadius + rightRadius);
+        double const fraction = (exactRadius - leftRadius) / separation;
+        RawPoint center{};
+        for (size_t axis = 0; axis < NDIM; axis++) {
+            double const lower = static_cast<double>(leftCenter[axis]);
+            double const delta = static_cast<double>(rightCenter[axis]) - lower;
+            center[axis] = static_cast<std::uint32_t>(std::llround(lower + fraction * delta));
+        }
+        return {center, std::max(rawDistance(center, leftCenter) + leftRadius, rawDistance(center, rightCenter) + rightRadius)};
+    }
+
+    // Fill centers, masses, radii, particle boxes, and multipoles. Children
+    // follow their parents, so a reverse pass finishes both children before
+    // each parent. Moments are accumulated in double and rounded once.
     void computeMoments(CellTrees& trees, CellFrame const& frame, ParticleStorage const& particles, KdTreeParameters const& parameters) {
         constexpr double kRawScale = 0x1p-32;
+        // Internal nodes up to this many buckets are scanned exactly, as in
+        // the old CosmicTiger tree; larger ones use the box half-diagonal.
+        constexpr ParticleCount kExactScanBuckets = 64;
+        constexpr ParticleCount kExactScanCount = kExactScanBuckets * kBucketSize;
         PROFILE();
         size_t const count = trees.nodes.size();
         std::vector<DoubleMultipole> moments(count);
         std::vector<std::array<std::uint64_t, NDIM>> offsetSums(count);
-        std::vector<std::array<std::uint32_t, NDIM>> centers(count);
+        std::vector<RawPoint> centers(count);
+        // Inclusive particle offset bounds of every nonempty node.
+        std::vector<RawPoint> minimumOffsets(count);
+        std::vector<RawPoint> maximumOffsets(count);
         trees.multipoles.assign(count, CellMultipole{});
         double const particleMass = static_cast<double>(parameters.particleMass);
         FpeGuard guard;
@@ -181,35 +261,89 @@ namespace detail {
             ParticleCount const particleCount = range.end - range.begin;
             bool const leaf = node.leftChild == kNoChild;
             auto& sum = offsetSums[index];
+            auto& minimum = minimumOffsets[index];
+            auto& maximum = maximumOffsets[index];
+            minimum.fill(std::numeric_limits<std::uint32_t>::max());
+            maximum.fill(0);
             if (leaf) {
                 for (ParticleCount particle = range.begin; particle < range.end; particle++) {
                     for (size_t axis = 0; axis < NDIM; axis++) {
                         std::uint32_t const offset = boxOffset(particles, axis, particle, frame.lower);
                         expectIndex(offset, frame.width);
                         sum[axis] += offset;
+                        minimum[axis] = std::min(minimum[axis], offset);
+                        maximum[axis] = std::max(maximum[axis], offset);
                     }
                 }
             } else {
-                for (size_t axis = 0; axis < NDIM; axis++) {
-                    sum[axis] = offsetSums[node.leftChild][axis] + offsetSums[node.rightChild][axis];
+                for (size_t const child : {node.leftChild, node.rightChild}) {
+                    for (size_t axis = 0; axis < NDIM; axis++) {
+                        sum[axis] += offsetSums[child][axis];
+                        if (trees.nodes[child].particles.begin != trees.nodes[child].particles.end) {
+                            minimum[axis] = std::min(minimum[axis], minimumOffsets[child][axis]);
+                            maximum[axis] = std::max(maximum[axis], maximumOffsets[child][axis]);
+                        }
+                    }
                 }
             }
-            // The center is a raw offset, so it is exactly representable both as
-            // a fixed-point position and in double.
-            auto& center = centers[index];
+            RawPoint boxCenter{};
+            RawPoint particleBoxCenter{};
+            RawPoint upper{};
             for (size_t axis = 0; axis < NDIM; axis++) {
-                std::uint32_t const lower = node.box.lower[axis];
-                std::uint32_t const upper = node.box.upper[axis];
-                if (particleCount == 0 || parameters.multipoleCenter == MultipoleCenter::geometricCenter) {
-                    center[axis] = lower + (upper - lower) / 2;
+                std::uint32_t const lower = lowerRaw(node.box, axis);
+                boxCenter[axis] = lower + (upperRaw(node.box, axis) - lower) / 2;
+                particleBoxCenter[axis] = minimum[axis] + (maximum[axis] - minimum[axis]) / 2;
+                upper[axis] = maximum[axis] + 1;
+            }
+            if (particleCount > 0) {
+                node.particleBox = makeBox(minimum, upper);
+            }
+            // Every center is a raw offset, so it is exactly representable both
+            // as a fixed-point position and in double.
+            auto& center = centers[index];
+            double radius = 0.0;
+            if (particleCount == 0) {
+                center = boxCenter;
+            } else if (parameters.multipoleCenter == MultipoleCenter::minimumRadius) {
+                if (leaf) {
+                    center = particleBoxCenter;
+                    radius = scanRadius(particles, range, frame, center);
                 } else {
+                    center = particleBoxCenter;
+                    if (particleCount <= kExactScanCount) {
+                        radius = scanRadius(particles, range, frame, center);
+                    } else {
+                        double cornerSquared = 0.0;
+                        for (size_t axis = 0; axis < NDIM; axis++) {
+                            double const extent = static_cast<double>(std::max(center[axis] - minimum[axis], maximum[axis] - center[axis])) * kRawScale;
+                            cornerSquared += extent * extent;
+                        }
+                        radius = std::sqrt(cornerSquared);
+                    }
+                    KdNode const& left = trees.nodes[node.leftChild];
+                    KdNode const& right = trees.nodes[node.rightChild];
+                    bool const leftEmpty = left.particles.begin == left.particles.end;
+                    bool const rightEmpty = right.particles.begin == right.particles.end;
+                    auto const sphere = leftEmpty ? std::pair{centers[node.rightChild], right.radius} :
+                        rightEmpty                ? std::pair{centers[node.leftChild], left.radius} :
+                                                    enclosingSphere(centers[node.leftChild], left.radius, centers[node.rightChild], right.radius);
+                    if (sphere.second < radius) {
+                        center = sphere.first;
+                        radius = sphere.second;
+                    }
+                }
+            } else if (parameters.multipoleCenter == MultipoleCenter::geometricCenter) {
+                center = boxCenter;
+            } else {
+                for (size_t axis = 0; axis < NDIM; axis++) {
                     center[axis] = static_cast<std::uint32_t>((sum[axis] + particleCount / 2) / particleCount);
                 }
+            }
+            for (size_t axis = 0; axis < NDIM; axis++) {
                 setAxis(node.center, axis, Coordinate::fromRaw(frame.lower[axis] + center[axis]));
             }
             node.mass = particleMass * static_cast<double>(particleCount);
             auto& moment = moments[index];
-            double radius = 0.0;
             if (leaf) {
                 for (ParticleCount particle = range.begin; particle < range.end; particle++) {
                     std::array<double, NDIM> offset{};
@@ -217,9 +351,12 @@ namespace detail {
                         offset[axis] = (static_cast<double>(boxOffset(particles, axis, particle, frame.lower)) - static_cast<double>(center[axis])) * kRawScale;
                     }
                     double const normalizedRadiusSquared = stf::addPoint<double, kMultipoleOrder>(moment, particleMass, offset, frame.spacing);
-                    radius = std::max(radius, std::sqrt(normalizedRadiusSquared) * frame.spacing);
+                    if (parameters.multipoleCenter != MultipoleCenter::minimumRadius) {
+                        radius = std::max(radius, std::sqrt(normalizedRadiusSquared) * frame.spacing);
+                    }
                 }
             } else {
+                double childBound = 0.0;
                 for (size_t const child : {node.leftChild, node.rightChild}) {
                     KdNode const& childNode = trees.nodes[child];
                     if (childNode.particles.begin == childNode.particles.end) {
@@ -232,18 +369,18 @@ namespace detail {
                         distanceSquared += displacement[axis] * displacement[axis];
                     }
                     stf::addM2M<double, kMultipoleOrder>(moment, moments[child], displacement, frame.spacing, frame.spacing);
-                    radius = std::max(radius, childNode.radius + std::sqrt(distanceSquared));
+                    childBound = std::max(childBound, childNode.radius + std::sqrt(distanceSquared));
                 }
-                // The farthest box corner is also a bound; keep the tighter one.
-                double cornerSquared = 0.0;
-                for (size_t axis = 0; axis < NDIM; axis++) {
-                    double const below = static_cast<double>(center[axis] - node.box.lower[axis]);
-                    double const above = static_cast<double>(node.box.upper[axis] - center[axis]);
-                    double const extent = std::max(below, above) * kRawScale;
-                    cornerSquared += extent * extent;
-                }
-                if (particleCount > 0) {
-                    radius = std::min(radius, std::sqrt(cornerSquared));
+                if (parameters.multipoleCenter != MultipoleCenter::minimumRadius && particleCount > 0) {
+                    // The farthest box corner is also a bound; keep the tighter one.
+                    double cornerSquared = 0.0;
+                    for (size_t axis = 0; axis < NDIM; axis++) {
+                        double const below = static_cast<double>(center[axis] - lowerRaw(node.box, axis));
+                        double const above = static_cast<double>(upperRaw(node.box, axis) - center[axis]);
+                        double const extent = std::max(below, above) * kRawScale;
+                        cornerSquared += extent * extent;
+                    }
+                    radius = std::min(childBound, std::sqrt(cornerSquared));
                 }
             }
             node.radius = radius;
@@ -263,13 +400,13 @@ namespace detail {
 KdSplit GeometricMidpointSplitter::chooseSplit(KdSplitContext const& node) const {
     PROFILE();
     size_t const axis = node.depth % NDIM;
-    std::uint32_t const lower = node.box.lower[axis];
-    std::uint32_t const upper = node.box.upper[axis];
+    std::uint32_t const lower = node.box.min(axis).raw();
+    std::uint32_t const upper = node.box.max(axis).raw();
     expectRange(lower, lower, upper);
     if (upper - lower < 2) {
         return {};
     }
-    return {true, static_cast<int>(axis), lower + (upper - lower) / 2};
+    return {true, static_cast<int>(axis), Coordinate::fromRaw(lower + (upper - lower) / 2)};
 }
 
 CellKdTrees CellKdTrees::buildByPosition(

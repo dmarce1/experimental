@@ -38,7 +38,7 @@ namespace detail {
 
     constexpr std::uint64_t kEvolutionArchiveMagic = 0x435445564F4C3031ULL;
     // Version nine retains the runtime FMM rank along with the physical gravity settings.
-    constexpr std::uint32_t kEvolutionArchiveVersion = 9;
+    constexpr std::uint32_t kEvolutionArchiveVersion = 10;
     constexpr auto kEvolutionArchiveFlags = hpx::serialization::archive_flags::endian_little | hpx::serialization::archive_flags::disable_array_optimization |
         hpx::serialization::archive_flags::disable_data_chunking;
 
@@ -219,7 +219,7 @@ EvolutionCheckpointMetadata readEvolutionCheckpointMetadata(std::string const& f
         std::uint32_t version = 0;
         archive >> magic >> version;
         detail::requireEvolutionMetadata(magic == detail::kEvolutionArchiveMagic &&
-                (version == 2 || version == 3 || version == 4 || version == 5 || version == 6 || version == 7 || version == 8 ||
+                (version == 2 || version == 3 || version == 4 || version == 5 || version == 6 || version == 7 || version == 8 || version == 9 ||
                     version == detail::kEvolutionArchiveVersion),
             "serialized evolution state has an incompatible schema");
         if (version == 2) {
@@ -237,6 +237,8 @@ EvolutionCheckpointMetadata readEvolutionCheckpointMetadata(std::string const& f
                 serializeGlobalConstantsVersion7(archive, metadata.constants);
             } else if (version == 8) {
                 serializeGlobalConstantsVersion8(archive, metadata.constants);
+            } else if (version == 9) {
+                serializeGlobalConstantsVersion9(archive, metadata.constants);
             } else {
                 archive >> metadata.constants;
             }

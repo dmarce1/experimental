@@ -91,8 +91,9 @@ manifest only after its final checkpoint files have been produced.
 | Full symmetric tensors | `cosmictiger/gravity/symmetric/` | Trace-retaining operators needed for complete Plummer gravity |
 | PMMM | `cosmictiger/gravity/pmmm/`, `src/gravity/pmmm/pmmm_runtime_convolution.cpp` | Periodic Green coefficients, near-region exclusion, coefficient contraction and runtime rank dispatch |
 | Softening and references | `cosmictiger/gravity/ferrers.hpp`, `cosmictiger/gravity/plummer.hpp`, `cosmictiger/gravity/direct/`, `src/gravity/direct/` | Ferrers/Plummer kernels, direct periodic reference, sampled error comparisons |
-| Cell-level FMM | `cosmictiger/gravity/fmm/`, `src/gravity/fmm/` | Batched CPU/CUDA M2L, P2L and M2P cell interactions ported from the old tree code; not yet attached; `cosmictiger/cuda/cuda_warp_partition.cuh` warp list partitioning ([fmm_interactions.md](fmm_interactions.md)) |
-| Per-cell kd-trees | `cosmictiger/gravity/tree/`, `src/gravity/tree/` | Geometric x/y/z kd-tree rooted at each mesh cell, in-place position or rung-threshold ordering, center-of-mass node multipoles; not yet attached ([kd_tree.md](kd_tree.md)) |
+| Cell-level FMM | `cosmictiger/gravity/fmm/`, `src/gravity/fmm/` | Batched CPU/CUDA M2L, P2L and M2P cell interactions ported from the old tree code; the CPU entries evaluate the tree near field; `cosmictiger/cuda/cuda_warp_partition.cuh` warp list partitioning ([fmm_interactions.md](fmm_interactions.md)) |
+| Per-cell kd-trees | `cosmictiger/gravity/tree/`, `src/gravity/tree/` | Geometric x/y/z kd-tree rooted at each mesh cell, in-place position or rung-threshold ordering, center-of-mass, geometric, or old-code minimum-radius node centers ([kd_tree.md](kd_tree.md)) |
+| Tree near field | `cosmictiger/gravity/tree/tree_near_field.hpp`, `src/gravity/tree/tree_near_field.cpp` | Optional (`gravity.nearField=tree`) symmetric local FMM walk over the kd-trees replacing near-region direct P2P on the CPU kick ([tree_near_field.md](tree_near_field.md)) |
 | Kick | `cosmictiger/gravity/kick/`, `src/gravity/kick/` | Complete near/far field, timestep/rung choice, staggered half-kicks and force sums |
 | Drift | `cosmictiger/drift/drift.hpp`, `src/drift/` | CPU/SIMD and CUDA particle position updates using cosmological drift integrals |
 | Evolution and restart | `cosmictiger/evolution/`, `src/evolution/` | Integer rung clock, drift/redistribution/gravity sequence, diagnostics, snapshot interpolation and checkpoint metadata |
@@ -143,7 +144,8 @@ and kick, and diagnostics/output. The progress table names these phases
 8. Complete each owned sink's field before choosing a timestep, kicking, or
    accumulating its global force. Owned particle ranges determine uniqueness;
    ghost flags alone cannot identify all periodic copies.
-9. Checkpoint schema 9 records the current evolution metadata. Older supported
+9. Checkpoint schema 10 records the current evolution metadata, including the
+   near-field solver and opening angle, which a restart may change. Older supported
    schemas are read deliberately; pre-version-7 checkpoints retain their
    historical shared mesh and width 2. Preserve staggered momenta, clock phase,
    original rung-zero duration, energy reference, and diagnostic history.
@@ -182,6 +184,8 @@ into the application INI.
 | `gravity.meshExponent` | follows initialization mesh when omitted | explicitly 5 |
 | `gravity.ghostWidth` | 1 after this handoff's requested change | 1 |
 | `gravity.fmmOrder` | 6 | 6 |
+| `gravity.nearField` | direct | direct |
+| `gravity.openingAngle` | 0.55 | 0.55 |
 | `execution.cuda.drift`, `.kick`, `.multipole`, `.direct` | off | on |
 | `gravity.direct.sinkFraction` | 0, disabled | 0 |
 | `initialConditions.seed`, `gravity.direct.seed` | separate streams, each 42 | 42 |

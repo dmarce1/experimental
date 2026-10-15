@@ -45,6 +45,11 @@ inline constexpr int kPmmmMaximumNeighborWidth = 2;
 // Tree nodes with at most this many particles are not split. CUDA FMM kernels
 // size their per-bucket shared memory from it.
 inline constexpr size_t kBucketSize = 128;
+// The near region (the cells excluded from the PMMM far field) is evaluated
+// either by direct P2P over every near cell or by a local FMM walk over the
+// per-cell kd-trees with this default opening angle.
+enum class NearFieldMethod { direct, tree };
+inline constexpr double kDefaultOpeningAngle = 0.55;
 static_assert(kMultipoleOrder >= stf::kMinOrder && kMultipoleOrder <= stf::kMaxOrder, "Cell multipole order is outside the generated range");
 static_assert(kExpansionOrder >= stf::kMinOrder && kExpansionOrder <= stf::kMaxOrder, "Cell expansion order is outside the generated range");
 static_assert(kMaximumFmmOrder == stf::kMaxOrder, "Every build must support all FMM orders through nine");

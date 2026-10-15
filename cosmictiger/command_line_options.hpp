@@ -30,6 +30,10 @@ namespace cosmictiger {
 void addCommandLineOptions(hpx::program_options::options_description& options);
 GlobalConstantsData readCommandLineOptions(hpx::program_options::variables_map const& options, size_t localityCount);
 // Reject explicit CLI/INI changes to the saved FMM order, mesh, ghost width, and softening model.
+// Tree near fields need Ferrers softening, the CPU kick, and 0 < theta < 1.
+// Called after parsing and again after a restart merges its saved model.
+void validateNearFieldOptions(GlobalConstantsData const& data);
+
 void validateGravityRestartOptions(hpx::program_options::variables_map const& options, GlobalConstantsData const& data);
 // Preserve saved lightcone settings except fields explicitly supplied in CLI/INI.
 void applyLightconeRestartOptions(hpx::program_options::variables_map const& options, GlobalConstantsData& data);

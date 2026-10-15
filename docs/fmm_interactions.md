@@ -3,9 +3,9 @@
 `cosmictiger/gravity/fmm/fmm_interactions.hpp` provides batched cell-level
 FMM interactions on CPU and CUDA. They are ports of the CPU and CUDA kernels
 of the old tree code (`cosmictiger_old`, `src/gravity.cpp` and
-`src/gravity.cu` at `eb17708`). They are intended as an alternative to direct
-P2P for selected near-region cell pairs. **They are not yet connected to the
-kick, the evolution path, or any option.**
+`src/gravity.cu` at `eb17708`). The CPU entry points evaluate the tree near field
+(`gravity.nearField=tree`, [tree_near_field.md](tree_near_field.md)); the CUDA
+entry points are not yet used by a walk.
 
 | Old kernel | Operation | CPU entry | CUDA entry |
 | --- | --- | --- | --- |

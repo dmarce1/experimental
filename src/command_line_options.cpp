@@ -75,6 +75,17 @@ namespace detail {
         throw std::invalid_argument("gravity.softening.model must be ferrers or plummer");
     }
 
+    gravity::NearFieldMethod parseNearFieldMethod(std::string const& name) {
+        PROFILE();
+        if (name == "direct") {
+            return gravity::NearFieldMethod::direct;
+        }
+        if (name == "tree") {
+            return gravity::NearFieldMethod::tree;
+        }
+        throw std::invalid_argument("gravity.nearField must be direct or tree");
+    }
+
     MatterComponent parseMatterComponent(std::string const& name) {
         PROFILE();
         if (name == "totalMatter") {
@@ -217,11 +228,14 @@ void addCommandLineOptions(hpx::program_options::options_description& options) {
         po::value<double>()->default_value(defaults.minimumScaleFactor), "Positive scale factor at which an end run stops before the Big Crunch singularity")(
         "simulation.evolve", po::value<bool>()->default_value(true)->implicit_value(true), "Advance initialized or restarted particles");
     timestepGroup.add_options()("timestep.eta", po::value<double>()->default_value(defaults.timestepEta), "Acceleration-softening timestep accuracy parameter");
-    gravityGroup.add_options()("gravity.fmmOrder", po::value<int>()->default_value(defaults.fmmOrder), fmmOrderDescription.c_str())("gravity.meshExponent",
-        po::value<size_t>(), "Evolution FFT and Cartesian cell side is 2^meshExponent; defaults to initialConditions.meshExponent")("gravity.ghostWidth",
-        po::value<int>()->default_value(defaults.ghostWidth),
-        "Ghost-cell layers and direct-neighbor radius: one or two")("gravity.softening.model", po::value<std::string>()->default_value("ferrers"),
-        "Gravity softening model: ferrers or plummer")("gravity.softening.cellFraction", po::value<double>()->default_value(defaults.softeningCellFraction),
+    gravityGroup.add_options()("gravity.fmmOrder", po::value<int>()->default_value(defaults.fmmOrder), fmmOrderDescription.c_str())(
+        "gravity.meshExponent", po::value<size_t>(), "Evolution FFT and Cartesian cell side is 2^meshExponent; defaults to initialConditions.meshExponent")(
+        "gravity.ghostWidth", po::value<int>()->default_value(defaults.ghostWidth), "Ghost-cell layers and direct-neighbor radius: one or two")(
+        "gravity.softening.model", po::value<std::string>()->default_value("ferrers"), "Gravity softening model: ferrers or plummer")("gravity.nearField",
+        po::value<std::string>()->default_value("direct"),
+        "Near-cell gravity: direct P2P, or tree for a local FMM walk over per-cell kd-trees (Ferrers softening, CPU kick only)")("gravity.openingAngle",
+        po::value<double>()->default_value(defaults.openingAngle), "Tree near-field opening angle theta, greater than zero and less than one")(
+        "gravity.softening.cellFraction", po::value<double>()->default_value(defaults.softeningCellFraction),
         "Ferrers support radius q or Plummer epsilon as a fraction of the cell width, greater than zero and at most one")("gravity.softening.kernelOrder",
         po::value<int>()->default_value(defaults.softeningKernelOrder), "Ferrers softening kernel order, from zero through three")(
         "gravity.direct.sinkFraction", po::value<double>()->default_value(defaults.directSinkFraction),
@@ -306,6 +320,8 @@ GlobalConstantsData readCommandLineOptions(hpx::program_options::variables_map c
     }
     result.timestepEta = expectPositive(detail::optionOrDefault(options, "timestep.eta", result.timestepEta));
     result.softeningModel = detail::parseSofteningModel(detail::optionOrDefault(options, "gravity.softening.model", std::string("ferrers")));
+    result.nearFieldMethod = detail::parseNearFieldMethod(detail::optionOrDefault(options, "gravity.nearField", std::string("direct")));
+    result.openingAngle = detail::optionOrDefault(options, "gravity.openingAngle", result.openingAngle);
     result.softeningCellFraction =
         expectRange(0.0, expectPositive(detail::optionOrDefault(options, "gravity.softening.cellFraction", result.softeningCellFraction)), 1.0);
     result.softeningKernelOrder = expectRange(0, detail::optionOrDefault(options, "gravity.softening.kernelOrder", result.softeningKernelOrder), 3);
@@ -345,6 +361,7 @@ GlobalConstantsData readCommandLineOptions(hpx::program_options::variables_map c
         throw std::invalid_argument("execution.cuda.direct=on requires a CUDA-enabled build");
     }
 #endif
+    validateNearFieldOptions(result);
     result.restartManifest = detail::optionOrDefault(options, "restart.manifest", std::string{});
     result.checkpointPrefix = detail::optionOrDefault(options, "output.checkpointPrefix", result.checkpointPrefix);
     result.outputSnapshotCount = detail::optionOrDefault(options, "output.snapshotCount", result.outputSnapshotCount);
@@ -451,6 +468,23 @@ GlobalConstantsData readCommandLineOptions(hpx::program_options::variables_map c
         throw std::invalid_argument("initialConditions.outputPrefix is required when initialConditions.generate is set");
     }
     return result;
+}
+
+void validateNearFieldOptions(GlobalConstantsData const& data) {
+    PROFILE();
+    if (!(data.openingAngle > 0.0 && data.openingAngle < 1.0)) {
+        throw std::invalid_argument("gravity.openingAngle must lie in (0,1)");
+    }
+    if (data.nearFieldMethod == gravity::NearFieldMethod::tree) {
+        // The tree accepts multipole interactions only beyond the softening
+        // support, which a Plummer kernel never reaches.
+        if (data.softeningModel != gravity::SofteningModel::ferrers) {
+            throw std::invalid_argument("gravity.nearField=tree requires gravity.softening.model=ferrers");
+        }
+        if (data.cudaKick) {
+            throw std::invalid_argument("gravity.nearField=tree is not yet supported with execution.cuda.kick=on");
+        }
+    }
 }
 
 void validateGravityRestartOptions(hpx::program_options::variables_map const& commandLine, GlobalConstantsData const& data) {
