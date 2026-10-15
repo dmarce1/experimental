@@ -1,0 +1,59 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "generator": "Ninja"
+        },
+        {
+            "name": "release",
+            "inherits": "base",
+            "binaryDir": "${sourceDir}/release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_PREFIX_PATH": "$env{HOME}/local/hpx/Release"
+            }
+        },
+        {
+            "name": "relwithdebinfo",
+            "inherits": "base",
+            "binaryDir": "${sourceDir}/relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_PREFIX_PATH": "$env{HOME}/local/hpx/RelWithDebInfo"
+            }
+        },
+        {
+            "name": "debug",
+            "inherits": "base",
+            "binaryDir": "${sourceDir}/debug",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{HOME}/local/hpx/Debug"
+            }
+        },
+        {
+            "name": "profile",
+            "inherits": "base",
+            "binaryDir": "${sourceDir}/profile",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Profile",
+                "CMAKE_PREFIX_PATH": "$env{HOME}/local/hpx/Profile"
+            }
+        }
+    ],
+    "buildPresets": [
+        { "name": "release", "configurePreset": "release", "jobs": 4 },
+        { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo", "jobs": 4 },
+        { "name": "debug", "configurePreset": "debug", "jobs": 4 },
+        { "name": "profile", "configurePreset": "profile", "jobs": 4 }
+    ],
+    "testPresets": [
+        { "name": "release", "configurePreset": "release", "output": { "outputOnFailure": true }, "execution": { "jobs": 2 } },
+        { "name": "relwithdebinfo", "configurePreset": "relwithdebinfo", "output": { "outputOnFailure": true }, "execution": { "jobs": 2 } },
+        { "name": "debug", "configurePreset": "debug", "output": { "outputOnFailure": true }, "execution": { "jobs": 2 } },
+        { "name": "profile", "configurePreset": "profile", "output": { "outputOnFailure": true }, "execution": { "jobs": 2 } }
+    ]
+}

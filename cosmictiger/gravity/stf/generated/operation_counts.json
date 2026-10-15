@@ -1,0 +1,969 @@
+{
+  "min_order": 0,
+  "max_order": 9,
+  "description": "Static emitted arithmetic counts. +, - and * each count one; signs are absorbed into arithmetic/accumulation. constant rational evaluation is compile time. Add listed output accumulations. Geometry normalization/public validation and sqrt/division are excluded. No claim of optimal instruction counts or measured hardware FLOPs.",
+  "kernels": [
+    {
+      "expansion_order": 0,
+      "centered": true,
+      "base_source_order": 0,
+      "arithmetic_base": {
+        "*": 1
+      },
+      "arithmetic_full": {
+        "*": 1
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 1,
+      "full_extra_accumulations": 0,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 0,
+      "centered": false,
+      "base_source_order": 0,
+      "arithmetic_base": {
+        "*": 1
+      },
+      "arithmetic_full": {
+        "*": 1
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 1,
+      "full_extra_accumulations": 0,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 1,
+      "centered": true,
+      "base_source_order": 0,
+      "arithmetic_base": {
+        "*": 5
+      },
+      "arithmetic_full": {
+        "*": 5
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 4,
+      "full_extra_accumulations": 0,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 1,
+      "centered": false,
+      "base_source_order": 0,
+      "arithmetic_base": {
+        "*": 5
+      },
+      "arithmetic_full": {
+        "*": 10,
+        "+": 2
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 4,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 2,
+      "centered": true,
+      "base_source_order": 1,
+      "arithmetic_base": {
+        "*": 23,
+        "-": 2
+      },
+      "arithmetic_full": {
+        "*": 36,
+        "+": 2,
+        "-": 6
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 9,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 2,
+      "centered": false,
+      "base_source_order": 1,
+      "arithmetic_base": {
+        "*": 32,
+        "+": 4,
+        "-": 5
+      },
+      "arithmetic_full": {
+        "*": 45,
+        "+": 6,
+        "-": 9
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 9,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 3,
+      "centered": true,
+      "base_source_order": 2,
+      "arithmetic_base": {
+        "*": 58,
+        "+": 8,
+        "-": 12
+      },
+      "arithmetic_full": {
+        "*": 83,
+        "+": 10,
+        "-": 22
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 16,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 3,
+      "centered": false,
+      "base_source_order": 2,
+      "arithmetic_base": {
+        "*": 75,
+        "+": 16,
+        "-": 19
+      },
+      "arithmetic_full": {
+        "*": 100,
+        "+": 18,
+        "-": 29
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 16,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 4,
+      "centered": true,
+      "base_source_order": 3,
+      "arithmetic_base": {
+        "*": 119,
+        "+": 26,
+        "-": 39
+      },
+      "arithmetic_full": {
+        "*": 152,
+        "+": 31,
+        "-": 55
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 25,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 4,
+      "centered": false,
+      "base_source_order": 3,
+      "arithmetic_base": {
+        "*": 161,
+        "+": 41,
+        "-": 58
+      },
+      "arithmetic_full": {
+        "*": 194,
+        "+": 46,
+        "-": 74
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 25,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 5,
+      "centered": true,
+      "base_source_order": 4,
+      "arithmetic_base": {
+        "*": 247,
+        "+": 64,
+        "-": 95
+      },
+      "arithmetic_full": {
+        "*": 298,
+        "+": 76,
+        "-": 114
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 36,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 5,
+      "centered": false,
+      "base_source_order": 4,
+      "arithmetic_base": {
+        "*": 315,
+        "+": 103,
+        "-": 115
+      },
+      "arithmetic_full": {
+        "*": 366,
+        "+": 115,
+        "-": 134
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 36,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 6,
+      "centered": true,
+      "base_source_order": 5,
+      "arithmetic_base": {
+        "*": 451,
+        "+": 149,
+        "-": 188
+      },
+      "arithmetic_full": {
+        "*": 523,
+        "+": 156,
+        "-": 229
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 49,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 6,
+      "centered": false,
+      "base_source_order": 5,
+      "arithmetic_base": {
+        "*": 570,
+        "+": 207,
+        "-": 232
+      },
+      "arithmetic_full": {
+        "*": 642,
+        "+": 214,
+        "-": 273
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 49,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 7,
+      "centered": true,
+      "base_source_order": 6,
+      "arithmetic_base": {
+        "*": 814,
+        "+": 275,
+        "-": 371
+      },
+      "arithmetic_full": {
+        "*": 920,
+        "+": 297,
+        "-": 418
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 64,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 7,
+      "centered": false,
+      "base_source_order": 6,
+      "arithmetic_base": {
+        "*": 1004,
+        "+": 409,
+        "-": 397
+      },
+      "arithmetic_full": {
+        "*": 1110,
+        "+": 431,
+        "-": 444
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 64,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 8,
+      "centered": true,
+      "base_source_order": 7,
+      "arithmetic_base": {
+        "*": 1373,
+        "+": 505,
+        "-": 659
+      },
+      "arithmetic_full": {
+        "*": 1520,
+        "+": 524,
+        "-": 734
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 81,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 8,
+      "centered": false,
+      "base_source_order": 7,
+      "arithmetic_base": {
+        "*": 1674,
+        "+": 669,
+        "-": 746
+      },
+      "arithmetic_full": {
+        "*": 1821,
+        "+": 688,
+        "-": 821
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 81,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 9,
+      "centered": true,
+      "base_source_order": 8,
+      "arithmetic_base": {
+        "*": 2265,
+        "+": 926,
+        "-": 1077
+      },
+      "arithmetic_full": {
+        "*": 2466,
+        "+": 953,
+        "-": 1172
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 100,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    },
+    {
+      "expansion_order": 9,
+      "centered": false,
+      "base_source_order": 8,
+      "arithmetic_base": {
+        "*": 2683,
+        "+": 1204,
+        "-": 1160
+      },
+      "arithmetic_full": {
+        "*": 2884,
+        "+": 1231,
+        "-": 1255
+      },
+      "trace_extra_arithmetic": {},
+      "base_accumulations": 100,
+      "full_extra_accumulations": 1,
+      "trace_accumulations": 0
+    }
+  ],
+  "operators": [
+    {
+      "operator": "M2M",
+      "order": 0,
+      "arithmetic": {},
+      "accumulations": 1
+    },
+    {
+      "operator": "L2L",
+      "order": 0,
+      "arithmetic": {},
+      "accumulations": 1,
+      "with_trace": false
+    },
+    {
+      "operator": "M2M",
+      "order": 1,
+      "arithmetic": {
+        "*": 6,
+        "+": 3
+      },
+      "accumulations": 4
+    },
+    {
+      "operator": "L2L",
+      "order": 1,
+      "arithmetic": {
+        "*": 6,
+        "+": 3
+      },
+      "accumulations": 4,
+      "with_trace": false
+    },
+    {
+      "operator": "M2M",
+      "order": 2,
+      "arithmetic": {
+        "*": 33,
+        "+": 16,
+        "-": 4
+      },
+      "accumulations": 9
+    },
+    {
+      "operator": "L2L",
+      "order": 2,
+      "arithmetic": {
+        "*": 35,
+        "+": 15,
+        "-": 5
+      },
+      "accumulations": 9,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 2,
+      "arithmetic": {
+        "*": 38,
+        "+": 14,
+        "-": 8
+      },
+      "accumulations": 10,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 3,
+      "arithmetic": {
+        "*": 99,
+        "+": 47,
+        "-": 26
+      },
+      "accumulations": 16
+    },
+    {
+      "operator": "L2L",
+      "order": 3,
+      "arithmetic": {
+        "*": 90,
+        "+": 48,
+        "-": 15
+      },
+      "accumulations": 16,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 3,
+      "arithmetic": {
+        "*": 93,
+        "+": 39,
+        "-": 26
+      },
+      "accumulations": 17,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 4,
+      "arithmetic": {
+        "*": 231,
+        "+": 116,
+        "-": 67
+      },
+      "accumulations": 25
+    },
+    {
+      "operator": "L2L",
+      "order": 4,
+      "arithmetic": {
+        "*": 193,
+        "+": 109,
+        "-": 42
+      },
+      "accumulations": 25,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 4,
+      "arithmetic": {
+        "*": 196,
+        "+": 87,
+        "-": 66
+      },
+      "accumulations": 26,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 5,
+      "arithmetic": {
+        "*": 457,
+        "+": 252,
+        "-": 132
+      },
+      "accumulations": 36
+    },
+    {
+      "operator": "L2L",
+      "order": 5,
+      "arithmetic": {
+        "*": 366,
+        "+": 219,
+        "-": 85
+      },
+      "accumulations": 36,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 5,
+      "arithmetic": {
+        "*": 369,
+        "+": 164,
+        "-": 142
+      },
+      "accumulations": 37,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 6,
+      "arithmetic": {
+        "*": 800,
+        "+": 471,
+        "-": 242
+      },
+      "accumulations": 49
+    },
+    {
+      "operator": "L2L",
+      "order": 6,
+      "arithmetic": {
+        "*": 640,
+        "+": 374,
+        "-": 179
+      },
+      "accumulations": 49,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 6,
+      "arithmetic": {
+        "*": 643,
+        "+": 279,
+        "-": 276
+      },
+      "accumulations": 50,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 7,
+      "arithmetic": {
+        "*": 1293,
+        "+": 806,
+        "-": 406
+      },
+      "accumulations": 64
+    },
+    {
+      "operator": "L2L",
+      "order": 7,
+      "arithmetic": {
+        "*": 1049,
+        "+": 616,
+        "-": 314
+      },
+      "accumulations": 64,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 7,
+      "arithmetic": {
+        "*": 1052,
+        "+": 468,
+        "-": 464
+      },
+      "accumulations": 65,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 8,
+      "arithmetic": {
+        "*": 1993,
+        "+": 1271,
+        "-": 657
+      },
+      "accumulations": 81
+    },
+    {
+      "operator": "L2L",
+      "order": 8,
+      "arithmetic": {
+        "*": 1635,
+        "+": 941,
+        "-": 530
+      },
+      "accumulations": 81,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 8,
+      "arithmetic": {
+        "*": 1638,
+        "+": 730,
+        "-": 743
+      },
+      "accumulations": 82,
+      "with_trace": true
+    },
+    {
+      "operator": "M2M",
+      "order": 9,
+      "arithmetic": {
+        "*": 2947,
+        "+": 1914,
+        "-": 997
+      },
+      "accumulations": 100
+    },
+    {
+      "operator": "L2L",
+      "order": 9,
+      "arithmetic": {
+        "*": 2441,
+        "+": 1341,
+        "-": 873
+      },
+      "accumulations": 100,
+      "with_trace": false
+    },
+    {
+      "operator": "L2L",
+      "order": 9,
+      "arithmetic": {
+        "*": 2444,
+        "+": 1055,
+        "-": 1161
+      },
+      "accumulations": 101,
+      "with_trace": true
+    },
+    {
+      "operator": "P2L",
+      "order": 0,
+      "arithmetic": {
+        "*": 1
+      },
+      "accumulations": 1
+    },
+    {
+      "operator": "M2P",
+      "order": 0,
+      "arithmetic": {
+        "*": 8
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 0,
+      "arithmetic": {
+        "*": 8
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 1,
+      "arithmetic": {
+        "*": 5
+      },
+      "accumulations": 4
+    },
+    {
+      "operator": "M2P",
+      "order": 1,
+      "arithmetic": {
+        "*": 8
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 1,
+      "arithmetic": {
+        "*": 15,
+        "+": 4,
+        "-": 3
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 2,
+      "arithmetic": {
+        "*": 20,
+        "-": 2
+      },
+      "accumulations": 9
+    },
+    {
+      "operator": "M2P",
+      "order": 2,
+      "arithmetic": {
+        "*": 27,
+        "+": 8,
+        "-": 6
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 2,
+      "arithmetic": {
+        "*": 34,
+        "+": 15,
+        "-": 6
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 3,
+      "arithmetic": {
+        "*": 35,
+        "-": 6
+      },
+      "accumulations": 16
+    },
+    {
+      "operator": "M2P",
+      "order": 3,
+      "arithmetic": {
+        "*": 61,
+        "+": 20,
+        "-": 17
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 3,
+      "arithmetic": {
+        "*": 68,
+        "+": 28,
+        "-": 16
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 4,
+      "arithmetic": {
+        "*": 59,
+        "+": 1,
+        "-": 14
+      },
+      "accumulations": 25
+    },
+    {
+      "operator": "M2P",
+      "order": 4,
+      "arithmetic": {
+        "*": 102,
+        "+": 42,
+        "-": 27
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 4,
+      "arithmetic": {
+        "*": 109,
+        "+": 50,
+        "-": 26
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 5,
+      "arithmetic": {
+        "*": 87,
+        "+": 2,
+        "-": 27
+      },
+      "accumulations": 36
+    },
+    {
+      "operator": "M2P",
+      "order": 5,
+      "arithmetic": {
+        "*": 156,
+        "+": 60,
+        "-": 53
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 5,
+      "arithmetic": {
+        "*": 163,
+        "+": 68,
+        "-": 52
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 6,
+      "arithmetic": {
+        "*": 121,
+        "+": 6,
+        "-": 45
+      },
+      "accumulations": 49
+    },
+    {
+      "operator": "M2P",
+      "order": 6,
+      "arithmetic": {
+        "*": 225,
+        "+": 103,
+        "-": 66
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 6,
+      "arithmetic": {
+        "*": 232,
+        "+": 111,
+        "-": 65
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 7,
+      "arithmetic": {
+        "*": 167,
+        "+": 12,
+        "-": 72
+      },
+      "accumulations": 64
+    },
+    {
+      "operator": "M2P",
+      "order": 7,
+      "arithmetic": {
+        "*": 316,
+        "+": 125,
+        "-": 119
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 7,
+      "arithmetic": {
+        "*": 323,
+        "+": 133,
+        "-": 118
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 8,
+      "arithmetic": {
+        "*": 225,
+        "+": 21,
+        "-": 111
+      },
+      "accumulations": 81
+    },
+    {
+      "operator": "M2P",
+      "order": 8,
+      "arithmetic": {
+        "*": 435,
+        "+": 178,
+        "-": 164
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 8,
+      "arithmetic": {
+        "*": 442,
+        "+": 186,
+        "-": 163
+      },
+      "accumulations": 4,
+      "centered": false
+    },
+    {
+      "operator": "P2L",
+      "order": 9,
+      "arithmetic": {
+        "*": 300,
+        "+": 37,
+        "-": 162
+      },
+      "accumulations": 100
+    },
+    {
+      "operator": "M2P",
+      "order": 9,
+      "arithmetic": {
+        "*": 592,
+        "+": 231,
+        "-": 236
+      },
+      "accumulations": 4,
+      "centered": true
+    },
+    {
+      "operator": "M2P",
+      "order": 9,
+      "arithmetic": {
+        "*": 599,
+        "+": 239,
+        "-": 235
+      },
+      "accumulations": 4,
+      "centered": false
+    }
+  ]
+}

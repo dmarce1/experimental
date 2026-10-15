@@ -1,0 +1,3 @@
+[submodule "third_party/camb"]
+	path = third_party/camb
+	url = https://github.com/cmbant/CAMB.git

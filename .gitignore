@@ -1,4 +1,28 @@
 /build/
 /build-*/
+/build_*/
+/release/
+/relwithdebinfo/
+/debug/
+/profile/
+/gmon.out
+/gmon.out.*
+/cosmictiger.profile.*.txt
 /CMakeUserPresets.json
 /compile_commands.json
+
+# Local editor state and caches.
+/.cache/
+/.cproject
+/.project
+/.settings/
+__pycache__/
+*.pyc
+
+# Generated simulation data and visualization logs.
+/output/
+/simulation*.diagnostics.csv
+/simulation*.silo
+/simulation*.visit
+/simulation*.restart
+/visitlog.py
